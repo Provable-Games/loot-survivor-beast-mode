@@ -58,8 +58,10 @@ pub mod beast_mode {
         legacy_beasts_address: ContractAddress,
         payment_token: ContractAddress,
         renderer_address: ContractAddress,
-        golden_pass_address: ContractAddress,
+        golden_pass: Span<(ContractAddress, GoldenPass)>,
         ticket_receiver_address: ContractAddress,
+        settings_id: u32,
+        cost_to_play: u256,
     ) {
         // Initialize storage
         self.beast_game_token_address.write(game_token_address);
@@ -67,14 +69,6 @@ pub mod beast_mode {
         self.beast_nft_address.write(beast_nft_address);
         self.legacy_beasts_address.write(legacy_beasts_address);
         self.airdrop_count.write(0);
-
-        // Configure ticket booth
-        let cost_to_play: u256 = 1000000000000000000; // 1 ETH
-        let settings_id = 0;
-        let golden_pass = GoldenPass {
-            cooldown: 82800,        // 23 hours in seconds
-            game_expiration: 864000 // 10 days in seconds
-        };
 
         self.ticket_booth.initializer(
             opening_time,
@@ -86,9 +80,9 @@ pub mod beast_mode {
             Some(settings_id),
             Some(0), // start_time
             Some(0), // expiration_time
-            Option::Some("https://lootsurvivor.io"),
+            Some("https://lootsurvivor.io"),
             Some(renderer_address),
-            Some(array![(golden_pass_address, golden_pass)].span()),
+            Some(golden_pass),
         );
     }
 
