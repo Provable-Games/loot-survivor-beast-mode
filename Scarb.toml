@@ -1,14 +1,19 @@
 [package]
-name = "ticket_booth_contract"
+cairo-version = "=2.11.4"
+name = "beast_mode"
 version = "0.1.0"
-edition = "2023_11"
+edition = "2024_07"
 
 [dependencies]
-starknet = "2.4.0"
-# openzeppelin = { git = "https://github.com/OpenZeppelin/cairo-contracts.git" }
-# game_components_token = { git = "https://github.com/Provable-Games/game-components.git", branch = "feat/ticket-booth", submodules = ["packages/token"] }
-# game_components_metagame = { git = "https://github.com/Provable-Games/game-components.git", branch = "feat/ticket-booth", submodules = ["packages/metagame"] }
-# death_mountain = { git = "https://github.com/Provable-Games/death-mountain.git", branch = "feat/beast-mode" }
-# beasts = { git = "https://github.com/Provable-Games/beasts.git", branch = "main" }
+starknet = "2.11.4"
+game_components_metagame = { git = "https://github.com/Provable-Games/game-components.git", branch = "feat/ticket-booth", submodules = ["packages/metagame"] }
+beasts_nft = { git = "https://github.com/Provable-Games/beasts.git" }
+openzeppelin_token = "1.0.0"
+
+[scripts]
+test = "snforge test"
+
+[dev-dependencies]
+snforge_std = "0.45.0"
 
 [[target.starknet-contract]] 
