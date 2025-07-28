@@ -5,4 +5,4 @@ pub struct LegacyBeast {
     pub suffix: u8,
     pub level: u16,
     pub health: u16,
-} 
+}

@@ -1,14 +1,15 @@
 [package]
-cairo-version = "=2.11.4"
+cairo-version = "=2.10.1"
 name = "beast_mode"
 version = "0.1.0"
 edition = "2024_07"
 
 [dependencies]
-starknet = "2.11.4"
+starknet = "2.10.1"
 game_components_metagame = { git = "https://github.com/Provable-Games/game-components.git", branch = "feat/ticket-booth", submodules = ["packages/metagame"] }
-beasts_nft = { git = "https://github.com/Provable-Games/beasts.git" }
+beasts_nft = { git = "https://github.com/Provable-Games/beasts.git", branch = "main" }
 openzeppelin_token = "1.0.0"
+openzeppelin_access = "1.0.0"
 
 [scripts]
 test = "snforge test"

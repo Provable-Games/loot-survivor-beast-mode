@@ -1,7 +1,6 @@
 target/
 .scarb/
 Scarb.lock
-.tool-versions
 *.sierra.json
 *.casm.json
 .starknet-foundry/
