@@ -216,7 +216,7 @@ pub mod beast_mode {
             let airdrop_hash = poseidon_hash_span(
                 [airdrop_count.into(), block_seed.into(), vrf_seed].span(),
             );
-            let (_beast_seed, _) = felt_to_two_u64(airdrop_hash);
+            let (beast_seed, _) = felt_to_two_u64(airdrop_hash);
 
             let beast = legacy_beasts_dispatcher.getBeast(airdrop_count.into());
 
@@ -224,14 +224,14 @@ pub mod beast_mode {
             let beast_systems = IBeastSystemsDispatcher {
                 contract_address: self.game_collectable_address.read(),
             };
-            let seed = beast_systems
+            beast_systems
                 .premint_collectable(
-                    beast.id, beast.prefix, beast.suffix, beast.level, beast.health,
+                    beast_seed, beast.id, beast.prefix, beast.suffix, beast.level, beast.health,
                 );
 
             // Determine rare traits (8% chance each) using different parts of the seed
             // Use the lower 32 bits for shiny trait
-            let shiny_seed = (seed & 0xFFFFFFFF_u64) % 10000_u64;
+            let shiny_seed = (beast_seed & 0xFFFFFFFF_u64) % 10000_u64;
             let shiny = if shiny_seed < 800_u64 {
                 1_u8
             } else {
@@ -239,7 +239,7 @@ pub mod beast_mode {
             };
 
             // Use the upper 32 bits for animated trait
-            let animated_seed = ((seed / 0x100000000_u64) & 0xFFFFFFFF_u64) % 10000_u64;
+            let animated_seed = ((beast_seed / 0x100000000_u64) & 0xFFFFFFFF_u64) % 10000_u64;
             let animated = if animated_seed < 800_u64 {
                 1_u8
             } else {

@@ -14,7 +14,7 @@ pub trait IBeastSystems<T> {
         self: @T, contract_address: ContractAddress, adventurer_id: u64, entity_hash: felt252,
     ) -> CollectableResult;
     fn premint_collectable(
-        self: @T, beast_id: u8, prefix: u8, suffix: u8, level: u16, health: u16,
+        self: @T, beast_seed: u64, beast_id: u8, prefix: u8, suffix: u8, level: u16, health: u16,
     ) -> u64;
 }
 
