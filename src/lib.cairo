@@ -1,7 +1,9 @@
 use core::poseidon::poseidon_hash_span;
 use core::traits::DivRem;
 use starknet::ContractAddress;
-use starknet::storage::{StoragePointerReadAccess, StoragePointerWriteAccess};
+use starknet::storage::{
+    Map, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess,
+};
 use starknet::{get_contract_address, get_block_number, SyscallResultTrait};
 use starknet::syscalls::{get_block_hash_syscall};
 
@@ -12,8 +14,8 @@ use game_components_metagame::ticket_booth::{
 use openzeppelin_access::ownable::OwnableComponent;
 
 // Local modules
-mod interfaces;
-mod structs;
+pub mod interfaces;
+pub mod structs;
 mod vrf;
 
 // Local VRF import
@@ -22,12 +24,14 @@ use vrf::{VRFImpl};
 // Local imports
 use interfaces::{
     IBeastSystemsDispatcher, IBeastSystemsDispatcherTrait, ILegacyBeastsDispatcher,
-    ILegacyBeastsDispatcherTrait, CollectableResult,
+    ILegacyBeastsDispatcherTrait, DataResult, IAdventurerSystemsDispatcher,
+    IAdventurerSystemsDispatcherTrait,
 };
 
 // External interface imports
 use beasts_nft::interfaces::{IBeastsDispatcher, IBeastsDispatcherTrait};
 use openzeppelin_token::erc721::interface::{IERC721Dispatcher, IERC721DispatcherTrait};
+use openzeppelin_token::erc20::interface::{IERC20Dispatcher, IERC20DispatcherTrait};
 
 #[starknet::contract]
 pub mod beast_mode {
@@ -49,13 +53,14 @@ pub mod beast_mode {
         ticket_booth: TicketBoothComponent::Storage,
         #[substorage(v0)]
         ownable: OwnableComponent::Storage,
-        game_collectable_address: ContractAddress,
-        beast_nft_address: ContractAddress,
-        legacy_beasts_address: ContractAddress,
         #[allow(starknet::colliding_storage_paths)]
         game_token_address: ContractAddress,
-        #[allow(starknet::colliding_storage_paths)]
-        opening_time: u64,
+        adventurer_systems_address: ContractAddress,
+        game_collectable_address: ContractAddress,
+        legacy_beasts_address: ContractAddress,
+        beast_nft_address: ContractAddress,
+        reward_token: ContractAddress,
+        reward_tokens_claimed: Map<u64, bool>,
         airdrop_vrf_seed: felt252,
         airdrop_block_number: u64,
         airdrop_count: u16,
@@ -76,9 +81,11 @@ pub mod beast_mode {
         opening_time: u64,
         game_token_address: ContractAddress,
         game_collectable_address: ContractAddress,
+        adventurer_systems_address: ContractAddress,
         beast_nft_address: ContractAddress,
         legacy_beasts_address: ContractAddress,
         payment_token: ContractAddress,
+        reward_token: ContractAddress,
         renderer_address: ContractAddress,
         golden_pass: Span<(ContractAddress, GoldenPass)>,
         ticket_receiver_address: ContractAddress,
@@ -89,11 +96,12 @@ pub mod beast_mode {
         self.ownable.initializer(starknet::get_caller_address());
 
         // Initialize storage
+        self.game_token_address.write(game_token_address);
+        self.adventurer_systems_address.write(adventurer_systems_address);
         self.game_collectable_address.write(game_collectable_address);
         self.beast_nft_address.write(beast_nft_address);
         self.legacy_beasts_address.write(legacy_beasts_address);
-        self.game_token_address.write(game_token_address);
-        self.opening_time.write(opening_time);
+        self.reward_token.write(reward_token);
 
         self
             .ticket_booth
@@ -132,7 +140,7 @@ pub mod beast_mode {
 
         match beast_systems
             .get_valid_collectable(get_contract_address(), adventurer_id, entity_hash) {
-            CollectableResult::Ok((
+            DataResult::Ok((
                 seed, level, health,
             )) => {
                 // Determine rare traits (4% chance each) using different parts of the seed
@@ -165,7 +173,7 @@ pub mod beast_mode {
                         animated,
                     );
             },
-            CollectableResult::Err(_) => {
+            DataResult::Err(_) => {
                 core::panic_with_felt252('Invalid collectable'.into());
             },
         }
@@ -264,17 +272,60 @@ pub mod beast_mode {
         self.airdrop_count.write(airdrop_count);
     }
 
+    #[external(v0)]
+    fn claim_reward_token(ref self: ContractState, token_id: u64) {
+        // Read contract addresses
+        let adventurer_systems_address = self.adventurer_systems_address.read();
+        let game_token_address = self.game_token_address.read();
+        let reward_token_address = self.reward_token.read();
+
+        // Create dispatchers
+        let adventurer_systems = IAdventurerSystemsDispatcher { contract_address: adventurer_systems_address };
+        let game_token = IERC721Dispatcher { contract_address: game_token_address };
+        let reward_token = IERC20Dispatcher { contract_address: reward_token_address };
+
+        // Early check: ensure contract has reward tokens available
+        let contract_balance = reward_token.balance_of(get_contract_address());
+        assert(contract_balance > 0, 'No reward tokens available');
+
+        // Check if caller owns the token
+        let caller = starknet::get_caller_address();
+        let token_owner = game_token.owner_of(token_id.into());
+        assert(caller == token_owner, 'Not token owner');
+
+        // Check if token has already claimed
+        let already_claimed = self.reward_tokens_claimed.entry(token_id).read();
+        assert(!already_claimed, 'Token already claimed');
+
+        // Get adventurer level to determine reward amount
+        match adventurer_systems.get_adventurer_level(get_contract_address(), token_id) {
+            DataResult::Ok((_, level, _)) => {
+                // Calculate reward amount (level amount with 18 decimals)
+                let reward_amount: u256 = (level.into() * 1000000000000000000_u256);
+                
+                // Check contract's reward token balance
+                let contract_balance = reward_token.balance_of(get_contract_address());
+                
+                // Use the smaller of reward amount or available balance
+                let transfer_amount = if reward_amount <= contract_balance {
+                    reward_amount
+                } else {
+                    contract_balance
+                };
+                
+                // Transfer reward tokens to the caller
+                reward_token.transfer(caller, transfer_amount);
+                
+                // Mark token has claimed
+                self.reward_tokens_claimed.entry(token_id).write(true);
+            },
+            DataResult::Err(_) => {
+                core::panic_with_felt252('Invalid adventurer'.into());
+            },
+        }
+    }
+
     // Getter functions
-    #[external(v0)]
-    fn get_opening_time(self: @ContractState) -> u64 {
-        self.opening_time.read()
-    }
-
-    #[external(v0)]
-    fn get_game_token_address(self: @ContractState) -> ContractAddress {
-        self.game_token_address.read()
-    }
-
     #[external(v0)]
     fn get_game_collectable_address(self: @ContractState) -> ContractAddress {
         self.game_collectable_address.read()
@@ -298,6 +349,16 @@ pub mod beast_mode {
     #[external(v0)]
     fn get_airdrop_block_number(self: @ContractState) -> u64 {
         self.airdrop_block_number.read()
+    }
+
+    #[external(v0)]
+    fn get_reward_token_address(self: @ContractState) -> ContractAddress {
+        self.reward_token.read()
+    }
+
+    #[external(v0)]
+    fn get_game_token_address(self: @ContractState) -> ContractAddress {
+        self.game_token_address.read()
     }
 
     // Owner-only update functions

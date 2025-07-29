@@ -15,6 +15,12 @@ openzeppelin_access = "1.0.0"
 test = "snforge test"
 
 [dev-dependencies]
-snforge_std = "0.45.0"
+snforge_std = "0.46.0"
+
+# Fork configuration for mainnet testing
+[tool.snforge]
+fork = [
+    { name = "mainnet", url = "https://starknet-mainnet.public.blastapi.io/rpc/v0_8", block_id = { tag = "latest" } }
+]
 
 [[target.starknet-contract]] 

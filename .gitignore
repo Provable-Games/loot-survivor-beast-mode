@@ -4,3 +4,4 @@ Scarb.lock
 *.sierra.json
 *.casm.json
 .starknet-foundry/
+.snfoundry_cache/
