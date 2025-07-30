@@ -216,7 +216,7 @@ pub mod beast_mode {
         let block_seed = get_block_hash_syscall(airdrop_block_number).unwrap_syscall();
 
         let new_limit = airdrop_count + limit;
-        let total_supply = legacy_beasts_dispatcher.totalSupply();
+        let total_supply = legacy_beasts_dispatcher.tokenSupply();
 
         while airdrop_count < new_limit && airdrop_count < total_supply.try_into().unwrap() {
             airdrop_count += 1;

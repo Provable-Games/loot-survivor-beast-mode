@@ -23,4 +23,9 @@ fork = [
     { name = "mainnet", url = "https://api.cartridge.gg/x/starknet/mainnet", block_id = { tag = "latest" } }
 ]
 
+[profile.dev.cairo]
+unstable-add-statements-functions-debug-info = true
+unstable-add-statements-code-locations-debug-info = true
+inlining-strategy = "avoid"
+
 [[target.starknet-contract]] 

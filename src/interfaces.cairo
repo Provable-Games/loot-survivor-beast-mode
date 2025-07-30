@@ -27,7 +27,7 @@ pub trait IAdventurerSystems<T> {
 pub trait ILegacyBeasts<T> {
     fn getBeast(self: @T, token_id: u256) -> LegacyBeast;
     fn ownerOf(self: @T, token_id: u256) -> ContractAddress;
-    fn totalSupply(self: @T) -> u256;
+    fn tokenSupply(self: @T) -> u256;
 }
 
 #[starknet::interface]
