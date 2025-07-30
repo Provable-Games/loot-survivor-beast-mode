@@ -299,7 +299,7 @@ pub mod beast_mode {
 
         // Get adventurer level to determine reward amount
         match adventurer_systems.get_adventurer_level(get_contract_address(), token_id) {
-            DataResult::Ok((_, level, _)) => {
+            DataResult::Ok(level) => {
                 // Calculate reward amount (level amount with 18 decimals)
                 let reward_amount: u256 = (level.into() * 1000000000000000000_u256);
                 

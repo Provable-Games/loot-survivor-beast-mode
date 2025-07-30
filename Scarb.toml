@@ -20,7 +20,7 @@ snforge_std = "0.46.0"
 # Fork configuration for mainnet testing
 [tool.snforge]
 fork = [
-    { name = "mainnet", url = "https://starknet-mainnet.public.blastapi.io/rpc/v0_8", block_id = { tag = "latest" } }
+    { name = "mainnet", url = "https://api.cartridge.gg/x/starknet/mainnet", block_id = { tag = "latest" } }
 ]
 
 [[target.starknet-contract]] 
