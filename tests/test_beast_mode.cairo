@@ -109,13 +109,6 @@ fn deploy_beast_mode_with_mock_nft() -> (IBeastModeDispatcher, IMockBeastNFTDisp
 fn setup_consistent_mocks() {
     let legacy_owner = contract_address_const::<'LEGACY_OWNER'>();
     
-    // Mock ERC20 balance_of calls - always return large balance
-    start_mock_call(
-        REWARD_TOKEN_ADDRESS(),
-        selector!("balance_of"),
-        1000000000000000000000_u256
-    );
-    
     // Mock legacy beasts totalSupply - always return 100
     start_mock_call(
         LEGACY_BEASTS_ADDRESS(),
@@ -128,6 +121,12 @@ fn setup_consistent_mocks() {
         LEGACY_BEASTS_ADDRESS(),
         selector!("ownerOf"),
         legacy_owner
+    );
+
+    start_mock_call(
+        REWARD_TOKEN_ADDRESS(),
+        selector!("balance_of"),
+        1000000000000000000000_u256,
     );
 }
 
@@ -213,29 +212,11 @@ fn mock_balance_of_zero_call() {
     );
 }
 
-fn mock_balance_of_large_call() {
-    mock_call(
-        REWARD_TOKEN_ADDRESS(),
-        selector!("balance_of"),
-        1000000000000000000000_u256,
-        1
-    );
-}
-
 fn mock_owner_of_call_times(owner: ContractAddress, times: u32) {
     mock_call(
         GAME_TOKEN_ADDRESS(),
         selector!("owner_of"),
         owner,
-        times
-    );
-}
-
-fn mock_balance_of_large_call_times(times: u32) {
-    mock_call(
-        REWARD_TOKEN_ADDRESS(),
-        selector!("balance_of"),
-        1000000000000000000000_u256,
         times
     );
 }
@@ -246,6 +227,30 @@ fn mock_adventurer_level_call_once(level: u8) {
         selector!("get_adventurer_level"),
         DataResult::Ok(level),
         1
+    );
+}
+
+// VRF contract address (from vrf.cairo)
+fn VRF_PROVIDER_ADDRESS() -> ContractAddress {
+    contract_address_const::<0x051fea4450da9d6aee758bdeba88b2f665bcbf549d2c61421aa724e9ac0ced8f>()
+}
+
+fn mock_vrf_consume_random(random_value: felt252) {
+    mock_call(
+        VRF_PROVIDER_ADDRESS(),
+        selector!("consume_random"),
+        random_value,
+        1
+    );
+}
+
+fn mock_premint_collectable_call(times: u32) {
+    // premint_collectable returns a u64 (entity_id)
+    mock_call(
+        GAME_COLLECTABLE_ADDRESS(),
+        selector!("premint_collectable"),
+        12345_u64, // Return some entity ID
+        times
     );
 }
 
@@ -315,8 +320,10 @@ fn test_claim_beast_rare_traits() {
     mock_beast_hash_call('BEAST_HASH_RARE');
     
     // Test with seed that should produce shiny=1, animated=0
-    // For shiny: (399 & 0xFFFFFFFF) % 10000 = 399 < 400, so shiny = 1
-    let seed_for_shiny = 399_u64;
+    // For shiny: lower 32 bits should be < 400
+    // For animated: upper 32 bits should be >= 400
+    // Seed: 0x19000000187 gives: lower=0x187(391), upper=0x190(400)
+    let seed_for_shiny = 0x19000000187_u64; // shiny=391<400(1), animated=400>=400(0)
     mock_valid_collectable_call(seed_for_shiny, 5_u16, 100_u16);
     
     // Call claim_beast
@@ -351,7 +358,9 @@ fn test_claim_beast_no_rare_traits() {
     mock_beast_hash_call('BEAST_HASH_NORMAL');
     
     // Test with seed that should produce shiny=0, animated=0
-    let seed_for_no_rare = 500_u64;
+    // Both lower and upper 32 bits should be >= 400
+    // Use a much larger seed: 0x270F000003E8 gives: lower=1000, upper=9999
+    let seed_for_no_rare = 0x270F000003E8_u64; // shiny=1000>=400(0), animated=9999>=400(0)
     mock_valid_collectable_call(seed_for_no_rare, 5_u16, 100_u16);
     
     // Call claim_beast
@@ -457,6 +466,9 @@ fn test_initiate_airdrop() {
     // Set block number
     start_cheat_block_number(beast_mode.contract_address, 1000);
     
+    // Mock VRF call
+    mock_vrf_consume_random('VRF_SEED_123');
+    
     // Verify airdrop not initiated
     assert(beast_mode.get_airdrop_block_number() == 0, 'Airdrop already initiated');
     assert(beast_mode.get_airdrop_count() == 0, 'Airdrop count not zero');
@@ -479,6 +491,9 @@ fn test_initiate_airdrop_twice() {
     // Set block number
     start_cheat_block_number(beast_mode.contract_address, 1000);
     
+    // Mock VRF call for first initiation
+    mock_vrf_consume_random('VRF_SEED_123');
+    
     // Initiate airdrop first time
     beast_mode.initiate_airdrop();
     
@@ -494,20 +509,27 @@ fn test_airdrop_legacy_beasts() {
     
     // First initiate the airdrop
     start_cheat_block_number(beast_mode.contract_address, 1000);
+    
+    // Mock VRF call for initiation
+    mock_vrf_consume_random('VRF_SEED_123');
+    
     beast_mode.initiate_airdrop();
     
     // Move forward in blocks to make airdrop ready
     start_cheat_block_number(beast_mode.contract_address, 1200);
     
-    // Set up block hash for the airdrop block
+    // Set up block hash for the airdrop block (block 1000 where airdrop was initiated)
     let block_hash = 'BLOCK_HASH_SEED';
-    start_cheat_block_hash(beast_mode.contract_address, 1100, block_hash);
+    start_cheat_block_hash(beast_mode.contract_address, 1000, block_hash);
     
     // Mock getBeast calls for IDs 76-80
     let legacy_owner = contract_address_const::<'LEGACY_OWNER'>();
     
     // Mock getBeast for multiple calls (we'll call with limit 5)
     mock_getBeast_call(5, 1, 2, 10, 50, 5);
+    
+    // Mock premint_collectable calls (called once per beast)
+    mock_premint_collectable_call(5);
     
     // Call airdrop_legacy_beasts with limit of 5
     beast_mode.airdrop_legacy_beasts(5);
@@ -537,7 +559,7 @@ fn test_airdrop_legacy_beasts() {
     };
     
     stop_cheat_block_number(beast_mode.contract_address);
-    stop_cheat_block_hash(beast_mode.contract_address, 1100);
+    stop_cheat_block_hash(beast_mode.contract_address, 1000);
 }
 
 #[test]
@@ -597,10 +619,7 @@ fn test_claim_reward_token_not_owner() {
     
     // Setup token ownership to PLAYER1
     mock_owner_of_call(owner_address);
-    
-    // Set contract reward token balance
-    mock_balance_of_large_call();
-    
+
     // Call as PLAYER2 - should panic
     start_cheat_caller_address(beast_mode_address, caller_address);
     beast_mode.claim_reward_token(token_id);
@@ -618,9 +637,6 @@ fn test_claim_reward_token_already_claimed() {
     
     // Mock token ownership
     mock_owner_of_call_times(player_address, 2);
-    
-    // Set contract reward token balance
-    mock_balance_of_large_call_times(2);
     
     // Set adventurer level
     mock_adventurer_level_call_once(10_u8);
@@ -648,9 +664,6 @@ fn test_claim_reward_token_invalid_adventurer() {
     
     // Mock token ownership
     mock_owner_of_call(player_address);
-    
-    // Set contract reward token balance
-    mock_balance_of_large_call();
     
     // Set adventurer level to return error
     mock_adventurer_level_error('INVALID_ADVENTURER');
