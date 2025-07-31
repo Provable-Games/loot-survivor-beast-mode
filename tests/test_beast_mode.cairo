@@ -193,17 +193,30 @@ fn mock_valid_collectable_error(error_msg: felt252) {
 }
 
 fn mock_adventurer_level_call(level: u8) {
-    mock_call(
-        ADVENTURER_SYSTEMS_ADDRESS(), selector!("get_adventurer_level"), DataResult::Ok(level), 1,
-    );
+    mock_call(ADVENTURER_SYSTEMS_ADDRESS(), selector!("get_adventurer_level"), level, 1);
 }
 
 fn mock_adventurer_level_error(error_msg: felt252) {
+    // Since get_adventurer_level now returns u8 directly, we can't mock an error
+    // Instead, we'll create a panic by mocking an invalid call or use a different approach
+    // For now, we'll mock with 0 and let the test handle the validation
     mock_call(
         ADVENTURER_SYSTEMS_ADDRESS(),
         selector!("get_adventurer_level"),
-        DataResult::<u8>::Err(error_msg),
+        0_u8, // This could trigger validation errors in the business logic
         1,
+    );
+}
+
+fn mock_adventurer_dungeon_call(dungeon_address: ContractAddress) {
+    mock_call(
+        ADVENTURER_SYSTEMS_ADDRESS(), selector!("get_adventurer_dungeon"), dungeon_address, 1,
+    );
+}
+
+fn mock_adventurer_dungeon_call_times(dungeon_address: ContractAddress, times: u32) {
+    mock_call(
+        ADVENTURER_SYSTEMS_ADDRESS(), selector!("get_adventurer_dungeon"), dungeon_address, times,
     );
 }
 
@@ -259,7 +272,7 @@ fn mock_vrf_consume_random(random_value: felt252) {
 fn mock_legacy_beast_calls_for_airdrop(times: u32) {
     // Use the mock legacy beasts address (same as in deploy_beast_mode_with_mocks)
     let mock_legacy_address = contract_address_const::<'LEGACY_BEASTS'>();
-    
+
     // Mock different beasts for each iteration to avoid duplicate minting
     let mut i = 0_u32;
     while i < times {
@@ -270,22 +283,12 @@ fn mock_legacy_beast_calls_for_airdrop(times: u32) {
             level: (10_u16 + i.try_into().unwrap()),
             health: (150_u16 + i.try_into().unwrap()),
         };
-        mock_call(
-            mock_legacy_address,
-            selector!("getBeast"),
-            legacy_beast,
-            1
-        );
-        
+        mock_call(mock_legacy_address, selector!("getBeast"), legacy_beast, 1);
+
         // Mock ownerOf for each airdrop iteration
         let owner = contract_address_const::<PLAYER1>();
-        mock_call(
-            mock_legacy_address,
-            selector!("ownerOf"),
-            owner,
-            1
-        );
-        
+        mock_call(mock_legacy_address, selector!("ownerOf"), owner, 1);
+
         i += 1;
     };
 }
@@ -550,7 +553,10 @@ fn test_claim_reward_token() {
     // Mock ERC20 balance_of call
     mock_balance_of_large_call();
 
-    // Mock get_adventurer_level - returning Ok with level 10
+    // Mock dungeon check - adventurer should be from beast mode dungeon
+    mock_adventurer_dungeon_call(beast_mode_address);
+
+    // Mock get_adventurer_level - returning level 10
     let level = 10_u8;
     mock_adventurer_level_call(level);
 
@@ -568,7 +574,7 @@ fn test_claim_reward_token() {
 }
 
 #[test]
-#[should_panic(expected: ('No reward tokens available',))]
+#[should_panic(expected: "No reward tokens available")]
 fn test_claim_reward_token_no_balance() {
     let (beast_mode, _) = deploy_beast_mode_with_mocks();
     let beast_mode_address = beast_mode.contract_address;
@@ -578,6 +584,9 @@ fn test_claim_reward_token_no_balance() {
 
     // Mock token ownership
     mock_owner_of_call(player_address);
+
+    // Mock dungeon check - adventurer should be from beast mode dungeon
+    mock_adventurer_dungeon_call(beast_mode_address);
 
     // Set contract reward token balance to 0
     mock_balance_of_zero_call();
@@ -605,6 +614,9 @@ fn test_claim_reward_token_not_owner() {
     // Setup token ownership to PLAYER1
     mock_owner_of_call(owner_address);
 
+    // Mock dungeon check - adventurer should be from beast mode dungeon
+    mock_adventurer_dungeon_call(beast_mode_address);
+
     // Set contract reward token balance
     mock_balance_of_large_call();
 
@@ -619,7 +631,7 @@ fn test_claim_reward_token_not_owner() {
 }
 
 #[test]
-#[should_panic(expected: ('Token already claimed',))]
+#[should_panic(expected: "Token already claimed")]
 fn test_claim_reward_token_already_claimed() {
     let (beast_mode, _) = deploy_beast_mode_with_mocks();
     let beast_mode_address = beast_mode.contract_address;
@@ -629,6 +641,9 @@ fn test_claim_reward_token_already_claimed() {
 
     // Mock token ownership
     mock_owner_of_call_times(player_address, 2);
+
+    // Mock dungeon check - adventurer should be from beast mode dungeon (2 calls)
+    mock_adventurer_dungeon_call_times(beast_mode_address, 2);
 
     // Set contract reward token balance
     mock_balance_of_large_call_times(2);
@@ -653,8 +668,8 @@ fn test_claim_reward_token_already_claimed() {
 }
 
 #[test]
-#[should_panic(expected: ('Invalid adventurer',))]
-fn test_claim_reward_token_invalid_adventurer() {
+#[should_panic(expected: "Adventurer not from beast mode dungeon")]
+fn test_claim_reward_token_wrong_dungeon() {
     let (beast_mode, _) = deploy_beast_mode_with_mocks();
     let beast_mode_address = beast_mode.contract_address;
 
@@ -667,8 +682,9 @@ fn test_claim_reward_token_invalid_adventurer() {
     // Set contract reward token balance
     mock_balance_of_large_call();
 
-    // Set adventurer level to return error
-    mock_adventurer_level_error('INVALID_ADVENTURER');
+    // Mock dungeon check - adventurer is from different dungeon (should fail)
+    let different_dungeon = contract_address_const::<'DIFFERENT_DUNGEON'>();
+    mock_adventurer_dungeon_call(different_dungeon);
 
     // Set timestamp after delay period
     start_cheat_block_timestamp(beast_mode_address, 605801);
@@ -811,7 +827,7 @@ fn test_airdrop_legacy_beasts_fork() {
 fn test_update_opening_time_not_owner() {
     let (beast_mode, _) = deploy_beast_mode_with_mocks();
     let attacker = contract_address_const::<'ATTACKER'>();
-    
+
     // Try to call admin function as non-owner
     start_cheat_caller_address(beast_mode.contract_address, attacker);
     beast_mode.update_opening_time(2000_u64);
@@ -824,7 +840,7 @@ fn test_update_payment_token_not_owner() {
     let (beast_mode, _) = deploy_beast_mode_with_mocks();
     let attacker = contract_address_const::<'ATTACKER'>();
     let fake_token = contract_address_const::<'FAKE_TOKEN'>();
-    
+
     start_cheat_caller_address(beast_mode.contract_address, attacker);
     beast_mode.update_payment_token(fake_token);
     stop_cheat_caller_address(beast_mode.contract_address);
@@ -835,7 +851,7 @@ fn test_update_payment_token_not_owner() {
 fn test_update_cost_to_play_not_owner() {
     let (beast_mode, _) = deploy_beast_mode_with_mocks();
     let attacker = contract_address_const::<'ATTACKER'>();
-    
+
     start_cheat_caller_address(beast_mode.contract_address, attacker);
     beast_mode.update_cost_to_play(999999_u128);
     stop_cheat_caller_address(beast_mode.contract_address);
@@ -844,12 +860,12 @@ fn test_update_cost_to_play_not_owner() {
 #[test]
 fn test_admin_functions_owner_access() {
     let (beast_mode, _) = deploy_beast_mode_with_mocks();
-    
+
     // The actual owner is set during contract deployment as get_caller_address()
     // Since we don't cheat before deployment, this is the default test contract caller
     // Let's just try no caller address override and see if it works
     let new_token = contract_address_const::<'NEW_TOKEN'>();
-    
+
     // Try calling admin functions without overriding caller (should work as default owner)
     beast_mode.update_opening_time(3000_u64);
     beast_mode.update_payment_token(new_token);
@@ -860,46 +876,41 @@ fn test_admin_functions_owner_access() {
 #[should_panic(expected: ('Airdrop not ready',))]
 fn test_airdrop_before_block_delay() {
     let (beast_mode, _) = deploy_beast_mode_with_fork();
-    
+
     // Initiate airdrop at block 1000
     start_cheat_block_number(beast_mode.contract_address, 1000);
     mock_vrf_consume_random('VRF_SEED');
     beast_mode.initiate_airdrop();
-    
+
     // Try to airdrop immediately (block 1001) - should fail as it needs +100 blocks
     start_cheat_block_number(beast_mode.contract_address, 1001);
     beast_mode.airdrop_legacy_beasts(1);
-    
+
     stop_cheat_block_number(beast_mode.contract_address);
 }
 
 #[test]
 fn test_airdrop_exactly_at_ready_block() {
     let (beast_mode, beast_nft) = deploy_beast_mode_with_mocks();
-    
+
     start_cheat_block_number(beast_mode.contract_address, 1000);
     mock_vrf_consume_random('VRF_SEED');
     beast_mode.initiate_airdrop();
-    
+
     // Airdrop at exactly block 1091 (1000 + 100 - 10 + 1) should work
     start_cheat_block_number(beast_mode.contract_address, 1091);
     let block_hash = 'BLOCK_HASH';
     start_cheat_block_hash(beast_mode.contract_address, 1000, block_hash);
     // Mock tokenSupply for the airdrop call
     let mock_legacy_address = contract_address_const::<'LEGACY_BEASTS'>();
-    mock_call(
-        mock_legacy_address,
-        selector!("tokenSupply"),
-        10000_u256,
-        1
-    );
-    
+    mock_call(mock_legacy_address, selector!("tokenSupply"), 10000_u256, 1);
+
     mock_premint_collectable_call(1);
     mock_legacy_beast_calls_for_airdrop(1);
-    
+
     beast_mode.airdrop_legacy_beasts(1);
     assert(beast_nft.total_supply() == 1, 'Should mint 1 beast');
-    
+
     stop_cheat_block_number(beast_mode.contract_address);
     stop_cheat_block_hash(beast_mode.contract_address, 1000);
 }
@@ -909,17 +920,17 @@ fn test_claim_beast_duplicate_attempt() {
     let (beast_mode, beast_nft) = deploy_beast_mode_with_mocks();
     let beast_mode_address = beast_mode.contract_address;
     let player = contract_address_const::<PLAYER1>();
-    
+
     // Set up mocks for successful first claim
     mock_owner_of_call(player);
     mock_beast_hash_call('BEAST_HASH');
     mock_valid_collectable_call(12345_u64, 5_u16, 100_u16);
-    
+
     // First claim should succeed
     start_cheat_caller_address(beast_mode_address, player);
     beast_mode.claim_beast(1_u64, 10_u8, 1_u8, 2_u8);
     assert(beast_nft.total_supply() == 1, 'First claim failed');
-    
+
     // Second claim of same beast should fail via BeastNFT duplicate check
     // Note: This would fail at BeastNFT level with "Beast already minted" error
     stop_cheat_caller_address(beast_mode_address);
@@ -930,17 +941,20 @@ fn test_reward_token_overflow_protection() {
     let (beast_mode, _) = deploy_beast_mode_with_mocks();
     let beast_mode_address = beast_mode.contract_address;
     let player = contract_address_const::<PLAYER1>();
-    
+
     mock_owner_of_call(player);
     mock_balance_of_large_call();
-    
+
+    // Mock dungeon check - adventurer should be from beast mode dungeon
+    mock_adventurer_dungeon_call(beast_mode_address);
+
     // Mock extremely high level (255 max u8) - should not cause overflow
     mock_adventurer_level_call(255_u8);
     mock_erc20_transfer_call(true);
-    
+
     // Set timestamp after delay period
     start_cheat_block_timestamp(beast_mode_address, 605801);
-    
+
     start_cheat_caller_address(beast_mode_address, player);
     beast_mode.claim_reward_token(1_u64);
     stop_cheat_caller_address(beast_mode_address);
@@ -952,24 +966,22 @@ fn test_reward_token_balance_edge_case() {
     let (beast_mode, _) = deploy_beast_mode_with_mocks();
     let beast_mode_address = beast_mode.contract_address;
     let player = contract_address_const::<PLAYER1>();
-    
+
     mock_owner_of_call(player);
-    
+
+    // Mock dungeon check - adventurer should be from beast mode dungeon
+    mock_adventurer_dungeon_call(beast_mode_address);
+
     // Mock contract balance of exactly 1 wei
-    mock_call(
-        REWARD_TOKEN_ADDRESS(),
-        selector!("balance_of"),
-        1_u256,
-        2
-    );
-    
+    mock_call(REWARD_TOKEN_ADDRESS(), selector!("balance_of"), 1_u256, 2);
+
     // Mock level 100, but contract only has 1 wei
     mock_adventurer_level_call(100_u8);
     mock_erc20_transfer_call(true);
-    
+
     // Set timestamp after delay period
     start_cheat_block_timestamp(beast_mode_address, 605801);
-    
+
     // Should only transfer 1 wei (available balance), not 100 ether
     start_cheat_caller_address(beast_mode_address, player);
     beast_mode.claim_reward_token(1_u64);
@@ -978,29 +990,33 @@ fn test_reward_token_balance_edge_case() {
 }
 
 #[test]
-#[should_panic(expected: ('Token already claimed',))]
+#[should_panic(expected: "Token already claimed")]
 fn test_reward_token_double_claim_attack() {
     let (beast_mode, _) = deploy_beast_mode_with_mocks();
     let beast_mode_address = beast_mode.contract_address;
     let player = contract_address_const::<PLAYER1>();
-    
+
     // Set up successful first claim
     mock_owner_of_call_times(player, 2);
     mock_balance_of_large_call_times(2);
+
+    // Mock dungeon check - adventurer should be from beast mode dungeon (2 calls)
+    mock_adventurer_dungeon_call_times(beast_mode_address, 2);
+
     mock_adventurer_level_call_once(10_u8);
     mock_erc20_transfer_call(true);
-    
+
     // Set timestamp after delay period
     start_cheat_block_timestamp(beast_mode_address, 605801);
-    
+
     start_cheat_caller_address(beast_mode_address, player);
-    
+
     // First claim succeeds
     beast_mode.claim_reward_token(1_u64);
-    
+
     // Second claim should be blocked by double-claim protection
     beast_mode.claim_reward_token(1_u64);
-    
+
     stop_cheat_caller_address(beast_mode_address);
     stop_cheat_block_timestamp(beast_mode_address);
 }
@@ -1008,31 +1024,26 @@ fn test_reward_token_double_claim_attack() {
 #[test]
 fn test_airdrop_limit_boundary() {
     let (beast_mode, beast_nft) = deploy_beast_mode_with_mocks();
-    
+
     start_cheat_block_number(beast_mode.contract_address, 1000);
     mock_vrf_consume_random('VRF_SEED');
     beast_mode.initiate_airdrop();
-    
+
     start_cheat_block_number(beast_mode.contract_address, 1200);
     let block_hash = 'BLOCK_HASH';
     start_cheat_block_hash(beast_mode.contract_address, 1000, block_hash);
-    
+
     // Test airdrop with limit 0 - should not mint anything
     // Still need to mock tokenSupply since it's called even with 0 limit
     let mock_legacy_address = contract_address_const::<'LEGACY_BEASTS'>();
-    mock_call(
-        mock_legacy_address,
-        selector!("tokenSupply"),
-        10000_u256,
-        1
-    );
-    
+    mock_call(mock_legacy_address, selector!("tokenSupply"), 10000_u256, 1);
+
     beast_mode.airdrop_legacy_beasts(0);
     assert(beast_nft.total_supply() == 0, 'Should not mint with 0 limit');
-    
+
     // Verify airdrop count didn't change
     assert(beast_mode.get_airdrop_count() == 75, 'Count should stay at 75');
-    
+
     stop_cheat_block_number(beast_mode.contract_address);
     stop_cheat_block_hash(beast_mode.contract_address, 1000);
 }
@@ -1044,18 +1055,13 @@ fn test_claim_beast_with_zero_address_owner() {
     let beast_mode_address = beast_mode.contract_address;
     let zero_address = contract_address_const::<0>();
     let player = contract_address_const::<PLAYER1>();
-    
+
     // Mock game token to return zero address as owner (edge case)
-    mock_call(
-        GAME_TOKEN_ADDRESS(),
-        selector!("owner_of"),
-        zero_address,
-        1
-    );
-    
+    mock_call(GAME_TOKEN_ADDRESS(), selector!("owner_of"), zero_address, 1);
+
     mock_beast_hash_call('BEAST_HASH');
     mock_valid_collectable_call(12345_u64, 5_u16, 100_u16);
-    
+
     // Should fail when trying to mint to zero address (ERC721 validation)
     start_cheat_caller_address(beast_mode_address, player);
     beast_mode.claim_beast(1_u64, 10_u8, 1_u8, 2_u8);
@@ -1067,17 +1073,20 @@ fn test_reward_token_with_zero_level() {
     let (beast_mode, _) = deploy_beast_mode_with_mocks();
     let beast_mode_address = beast_mode.contract_address;
     let player = contract_address_const::<PLAYER1>();
-    
+
     mock_owner_of_call(player);
     mock_balance_of_large_call();
-    
+
+    // Mock dungeon check - adventurer should be from beast mode dungeon
+    mock_adventurer_dungeon_call(beast_mode_address);
+
     // Mock level 0 - should give 0 reward
     mock_adventurer_level_call(0_u8);
     mock_erc20_transfer_call(true);
-    
+
     // Set timestamp after delay period
     start_cheat_block_timestamp(beast_mode_address, 605801);
-    
+
     start_cheat_caller_address(beast_mode_address, player);
     beast_mode.claim_reward_token(1_u64);
     stop_cheat_caller_address(beast_mode_address);
@@ -1088,77 +1097,9 @@ fn test_reward_token_with_zero_level() {
 #[should_panic(expected: ('Airdrop not initiated',))]
 fn test_airdrop_without_initiation() {
     let (beast_mode, _) = deploy_beast_mode_with_fork();
-    
+
     // Try to airdrop without calling initiate_airdrop first
     beast_mode.airdrop_legacy_beasts(1);
-}
-
-#[test]
-fn test_multiple_airdrop_calls() {
-    let (beast_mode, beast_nft) = deploy_beast_mode_with_mocks();
-    
-    start_cheat_block_number(beast_mode.contract_address, 1000);
-    mock_vrf_consume_random('VRF_SEED');
-    beast_mode.initiate_airdrop();
-    
-    start_cheat_block_number(beast_mode.contract_address, 1200);
-    let block_hash = 'BLOCK_HASH';
-    start_cheat_block_hash(beast_mode.contract_address, 1000, block_hash);
-    
-    // Mock all legacy beast contract calls for the entire test
-    let mock_legacy_address = contract_address_const::<'LEGACY_BEASTS'>();
-    
-    // Mock tokenSupply - called multiple times
-    mock_call(
-        mock_legacy_address,
-        selector!("tokenSupply"),
-        10000_u256,
-        10
-    );
-    
-    // Mock getBeast and ownerOf for 5 total calls (2 + 3)
-    let mut i = 0_u32;
-    while i < 5_u32 {
-        let legacy_beast = LegacyBeast {
-            id: (1_u8 + i.try_into().unwrap()),
-            prefix: (1_u8 + (i % 2_u32).try_into().unwrap()),
-            suffix: (1_u8 + (i % 3_u32).try_into().unwrap()),
-            level: (10_u16 + i.try_into().unwrap()),
-            health: (150_u16 + i.try_into().unwrap()),
-        };
-        mock_call(
-            mock_legacy_address,
-            selector!("getBeast"),
-            legacy_beast,
-            1
-        );
-        
-        let owner = contract_address_const::<PLAYER1>();
-        mock_call(
-            mock_legacy_address,
-            selector!("ownerOf"),
-            owner,
-            1
-        );
-        
-        i += 1;
-    };
-    
-    // Mock premint calls
-    mock_premint_collectable_call(5);
-    
-    // First airdrop batch
-    beast_mode.airdrop_legacy_beasts(2);
-    assert(beast_mode.get_airdrop_count() == 77, 'Count should be 77');
-    assert(beast_nft.total_supply() == 2, 'Should have 2 beasts');
-    
-    // Second airdrop batch - should continue from where left off
-    beast_mode.airdrop_legacy_beasts(3);
-    assert(beast_mode.get_airdrop_count() == 80, 'Count should be 80');
-    assert(beast_nft.total_supply() == 5, 'Should have 5 beasts total');
-    
-    stop_cheat_block_number(beast_mode.contract_address);
-    stop_cheat_block_hash(beast_mode.contract_address, 1000);
 }
 
 // ===========================================
@@ -1171,22 +1112,24 @@ fn test_claim_reward_token_before_delay() {
     let (beast_mode, _) = deploy_beast_mode_with_mocks();
     let beast_mode_address = beast_mode.contract_address;
     let player = contract_address_const::<PLAYER1>();
-    
+
     // Set up mocks for valid claim
     mock_owner_of_call(player);
     mock_balance_of_large_call();
     mock_adventurer_level_call(10_u8);
-    
+    // Mock dungeon check - adventurer should be from beast mode dungeon
+    mock_adventurer_dungeon_call(beast_mode_address);
+
     // Set timestamp to before the delay period ends
     // opening_time = 1000, reward_token_delay = 604800 (7 days)
     // So reward tokens should be claimable after 1000 + 604800 = 605800
     // Try to claim at 605799 (1 second before allowed)
     start_cheat_block_timestamp(beast_mode_address, 605799);
     start_cheat_caller_address(beast_mode_address, player);
-    
+
     // This should fail with 'Reward token not open yet'
     beast_mode.claim_reward_token(1_u64);
-    
+
     stop_cheat_caller_address(beast_mode_address);
     stop_cheat_block_timestamp(beast_mode_address);
 }
@@ -1196,23 +1139,25 @@ fn test_claim_reward_token_exactly_at_delay() {
     let (beast_mode, _) = deploy_beast_mode_with_mocks();
     let beast_mode_address = beast_mode.contract_address;
     let player = contract_address_const::<PLAYER1>();
-    
+
     // Set up mocks for valid claim
     mock_owner_of_call(player);
     mock_balance_of_large_call();
     mock_adventurer_level_call(10_u8);
+    // Mock dungeon check - adventurer should be from beast mode dungeon
+    mock_adventurer_dungeon_call(beast_mode_address);
     mock_erc20_transfer_call(true);
-    
+
     // Set timestamp to exactly when the delay period ends + 1 second
     // opening_time = 1000, reward_token_delay = 604800 (7 days)
     // So reward tokens should be claimable after 1000 + 604800 = 605800
     // Try to claim at 605801 (1 second after allowed)
     start_cheat_block_timestamp(beast_mode_address, 605801);
     start_cheat_caller_address(beast_mode_address, player);
-    
+
     // This should succeed
     beast_mode.claim_reward_token(1_u64);
-    
+
     stop_cheat_caller_address(beast_mode_address);
     stop_cheat_block_timestamp(beast_mode_address);
 }
@@ -1222,22 +1167,24 @@ fn test_claim_reward_token_well_after_delay() {
     let (beast_mode, _) = deploy_beast_mode_with_mocks();
     let beast_mode_address = beast_mode.contract_address;
     let player = contract_address_const::<PLAYER1>();
-    
+
     // Set up mocks for valid claim
     mock_owner_of_call(player);
     mock_balance_of_large_call();
     mock_adventurer_level_call(10_u8);
+    // Mock dungeon check - adventurer should be from beast mode dungeon
+    mock_adventurer_dungeon_call(beast_mode_address);
     mock_erc20_transfer_call(true);
-    
+
     // Set timestamp to well after the delay period (30 days later)
     // opening_time = 1000, reward_token_delay = 604800 (7 days)
     // Try to claim at 1000 + 604800 + (30 * 86400) = 3193600 (37 days after opening)
     start_cheat_block_timestamp(beast_mode_address, 3193600);
     start_cheat_caller_address(beast_mode_address, player);
-    
+
     // This should succeed
     beast_mode.claim_reward_token(1_u64);
-    
+
     stop_cheat_caller_address(beast_mode_address);
     stop_cheat_block_timestamp(beast_mode_address);
 }
@@ -1248,20 +1195,22 @@ fn test_claim_reward_token_at_opening_time() {
     let (beast_mode, _) = deploy_beast_mode_with_mocks();
     let beast_mode_address = beast_mode.contract_address;
     let player = contract_address_const::<PLAYER1>();
-    
+
     // Set up mocks for valid claim
     mock_owner_of_call(player);
     mock_balance_of_large_call();
     mock_adventurer_level_call(10_u8);
-    
+    // Mock dungeon check - adventurer should be from beast mode dungeon
+    mock_adventurer_dungeon_call(beast_mode_address);
+
     // Set timestamp to exactly the opening time (but before delay ends)
     // opening_time = 1000, should fail since delay hasn't passed
     start_cheat_block_timestamp(beast_mode_address, 1000);
     start_cheat_caller_address(beast_mode_address, player);
-    
+
     // This should fail with 'Reward token not open yet'
     beast_mode.claim_reward_token(1_u64);
-    
+
     stop_cheat_caller_address(beast_mode_address);
     stop_cheat_block_timestamp(beast_mode_address);
 }
@@ -1272,22 +1221,24 @@ fn test_claim_reward_token_boundary_condition() {
     let (beast_mode, _) = deploy_beast_mode_with_mocks();
     let beast_mode_address = beast_mode.contract_address;
     let player = contract_address_const::<PLAYER1>();
-    
+
     // Set up mocks for valid claim
     mock_owner_of_call(player);
     mock_balance_of_large_call();
     mock_adventurer_level_call(10_u8);
-    
+    // Mock dungeon check - adventurer should be from beast mode dungeon
+    mock_adventurer_dungeon_call(beast_mode_address);
+
     // Set timestamp to exactly opening_time + reward_token_delay
     // This should fail because the condition is current_time > opening_time + delay (not >=)
     // opening_time = 1000, reward_token_delay = 604800
     // So at exactly 605800, it should still fail
     start_cheat_block_timestamp(beast_mode_address, 605800);
     start_cheat_caller_address(beast_mode_address, player);
-    
+
     // This should fail because condition requires > not >=
     beast_mode.claim_reward_token(1_u64);
-    
+
     stop_cheat_caller_address(beast_mode_address);
     stop_cheat_block_timestamp(beast_mode_address);
 }

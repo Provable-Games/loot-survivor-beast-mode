@@ -20,9 +20,8 @@ pub trait IBeastSystems<T> {
 
 #[starknet::interface]
 pub trait IAdventurerSystems<T> {
-    fn get_adventurer_level(
-        self: @T, dungeon: ContractAddress, adventurer_id: u64,
-    ) -> DataResult<u8>;
+    fn get_adventurer_level(self: @T, adventurer_id: u64) -> u8;
+    fn get_adventurer_dungeon(self: @T, adventurer_id: u64) -> ContractAddress;
 }
 
 #[starknet::interface]

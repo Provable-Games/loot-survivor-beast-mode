@@ -1,9 +1,7 @@
 use core::poseidon::poseidon_hash_span;
 use core::traits::DivRem;
 use starknet::ContractAddress;
-use starknet::storage::{
-    Map, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess,
-};
+use starknet::storage::{Map, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess};
 use starknet::{get_contract_address, get_block_number, SyscallResultTrait};
 use starknet::syscalls::{get_block_hash_syscall};
 
@@ -178,9 +176,7 @@ pub mod beast_mode {
                         animated,
                     );
             },
-            DataResult::Err(_) => {
-                core::panic_with_felt252('Invalid collectable'.into());
-            },
+            DataResult::Err(_) => { core::panic_with_felt252('Invalid collectable'.into()); },
         }
     }
 
@@ -281,55 +277,57 @@ pub mod beast_mode {
     fn claim_reward_token(ref self: ContractState, token_id: u64) {
         let opening_time = self.opening_time.read();
         let current_time = starknet::get_block_timestamp();
-        assert(current_time > opening_time + self.reward_token_delay.read(), 'Reward token not open yet');
+        assert(
+            current_time > opening_time + self.reward_token_delay.read(),
+            'Reward token not open yet',
+        );
 
         let game_token_address = self.game_token_address.read();
         let game_token = IERC721Dispatcher { contract_address: game_token_address };
-        
+
         // Check if caller owns the token
         let caller = starknet::get_caller_address();
         let token_owner = game_token.owner_of(token_id.into());
         assert(caller == token_owner, 'Not token owner');
-        
+
         let reward_token_address = self.reward_token.read();
         let reward_token = IERC20Dispatcher { contract_address: reward_token_address };
         // Check if contract has reward tokens available
         let contract_balance = reward_token.balance_of(get_contract_address());
-        assert(contract_balance > 0, 'No reward tokens available');
-        
+        assert!(contract_balance > 0, "No reward tokens available");
+
         // Check if token has already claimed
         let already_claimed = self.reward_tokens_claimed.entry(token_id).read();
-        assert(!already_claimed, 'Token already claimed');
-        
+        assert!(!already_claimed, "Token already claimed");
+
         let adventurer_systems_address = self.adventurer_systems_address.read();
-        let adventurer_systems = IAdventurerSystemsDispatcher { contract_address: adventurer_systems_address };
-        
+        let adventurer_systems = IAdventurerSystemsDispatcher {
+            contract_address: adventurer_systems_address,
+        };
+
+        // Check adventurer is from beast mode dungeon
+        let dungeon = adventurer_systems.get_adventurer_dungeon(token_id);
+        assert!(dungeon == get_contract_address(), "Adventurer not from beast mode dungeon");
+
         // Get adventurer level to determine reward amount
-        match adventurer_systems.get_adventurer_level(get_contract_address(), token_id) {
-            DataResult::Ok(level) => {
-                // Calculate reward amount (level amount with 18 decimals)
-                let reward_amount: u256 = (level.into() * 1000000000000000000_u256);
-                
-                // Check contract's reward token balance
-                let contract_balance = reward_token.balance_of(get_contract_address());
-                
-                // Use the smaller of reward amount or available balance
-                let transfer_amount = if reward_amount <= contract_balance {
-                    reward_amount
-                } else {
-                    contract_balance
-                };
-                
-                // Transfer reward tokens to the caller
-                reward_token.transfer(caller, transfer_amount);
-                
-                // Mark token_id has claimed
-                self.reward_tokens_claimed.entry(token_id).write(true);
-            },
-            DataResult::Err(_) => {
-                core::panic_with_felt252('Invalid adventurer'.into());
-            },
-        }
+        let level = adventurer_systems.get_adventurer_level(token_id);
+        let reward_amount: u256 = (level.into() * 1000000000000000000_u256);
+
+        // Check contract's reward token balance
+        let contract_balance = reward_token.balance_of(get_contract_address());
+
+        // Use the smaller of reward amount or available balance
+        let transfer_amount = if reward_amount <= contract_balance {
+            reward_amount
+        } else {
+            contract_balance
+        };
+
+        // Transfer reward tokens to the caller
+        reward_token.transfer(caller, transfer_amount);
+
+        // Mark token_id has claimed
+        self.reward_tokens_claimed.entry(token_id).write(true);
     }
 
     // Getter functions
