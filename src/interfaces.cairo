@@ -20,7 +20,9 @@ pub trait IBeastSystems<T> {
 
 #[starknet::interface]
 pub trait IAdventurerSystems<T> {
-    fn get_adventurer_level(self: @T, dungeon: ContractAddress, adventurer_id: u64) -> DataResult<u8>;
+    fn get_adventurer_level(
+        self: @T, dungeon: ContractAddress, adventurer_id: u64,
+    ) -> DataResult<u8>;
 }
 
 #[starknet::interface]
@@ -41,13 +43,13 @@ pub trait IBeastMode<T> {
     fn get_airdrop_count(self: @T) -> u16;
     fn get_airdrop_block_number(self: @T) -> u64;
     fn get_reward_token_address(self: @T) -> ContractAddress;
-    
+
     // State-changing functions
     fn claim_beast(ref self: T, adventurer_id: u64, beast_id: u8, prefix: u8, suffix: u8);
     fn claim_reward_token(ref self: T, token_id: u64);
     fn initiate_airdrop(ref self: T);
     fn airdrop_legacy_beasts(ref self: T, limit: u16);
-    
+
     // Owner-only functions
     fn update_opening_time(ref self: T, new_opening_time: u64);
     fn update_payment_token(ref self: T, new_payment_token: ContractAddress);

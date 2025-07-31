@@ -60,6 +60,7 @@ pub mod beast_mode {
         legacy_beasts_address: ContractAddress,
         beast_nft_address: ContractAddress,
         reward_token: ContractAddress,
+        reward_token_delay: u64,
         reward_tokens_claimed: Map<u64, bool>,
         airdrop_vrf_seed: felt252,
         airdrop_block_number: u64,
@@ -86,6 +87,7 @@ pub mod beast_mode {
         legacy_beasts_address: ContractAddress,
         payment_token: ContractAddress,
         reward_token: ContractAddress,
+        reward_token_delay: u64,
         renderer_address: ContractAddress,
         golden_pass: Span<(ContractAddress, GoldenPass)>,
         ticket_receiver_address: ContractAddress,
@@ -102,7 +104,7 @@ pub mod beast_mode {
         self.beast_nft_address.write(beast_nft_address);
         self.legacy_beasts_address.write(legacy_beasts_address);
         self.reward_token.write(reward_token);
-
+        self.reward_token_delay.write(reward_token_delay);
         self
             .ticket_booth
             .initializer(
@@ -272,31 +274,30 @@ pub mod beast_mode {
         self.airdrop_count.write(airdrop_count);
     }
 
+    // TODO: Add delay when claiming reward token is available, check token_id minted time (8 days to avoid free week)
     #[external(v0)]
     fn claim_reward_token(ref self: ContractState, token_id: u64) {
-        // Read contract addresses
-        let adventurer_systems_address = self.adventurer_systems_address.read();
         let game_token_address = self.game_token_address.read();
-        let reward_token_address = self.reward_token.read();
-
-        // Create dispatchers
-        let adventurer_systems = IAdventurerSystemsDispatcher { contract_address: adventurer_systems_address };
         let game_token = IERC721Dispatcher { contract_address: game_token_address };
-        let reward_token = IERC20Dispatcher { contract_address: reward_token_address };
-
-        // Early check: ensure contract has reward tokens available
-        let contract_balance = reward_token.balance_of(get_contract_address());
-        assert(contract_balance > 0, 'No reward tokens available');
-
+        
         // Check if caller owns the token
         let caller = starknet::get_caller_address();
         let token_owner = game_token.owner_of(token_id.into());
         assert(caller == token_owner, 'Not token owner');
-
+        
+        let reward_token_address = self.reward_token.read();
+        let reward_token = IERC20Dispatcher { contract_address: reward_token_address };
+        // Check if contract has reward tokens available
+        let contract_balance = reward_token.balance_of(get_contract_address());
+        assert(contract_balance > 0, 'No reward tokens available');
+        
         // Check if token has already claimed
         let already_claimed = self.reward_tokens_claimed.entry(token_id).read();
         assert(!already_claimed, 'Token already claimed');
-
+        
+        let adventurer_systems_address = self.adventurer_systems_address.read();
+        let adventurer_systems = IAdventurerSystemsDispatcher { contract_address: adventurer_systems_address };
+        
         // Get adventurer level to determine reward amount
         match adventurer_systems.get_adventurer_level(get_contract_address(), token_id) {
             DataResult::Ok(level) => {
@@ -316,7 +317,7 @@ pub mod beast_mode {
                 // Transfer reward tokens to the caller
                 reward_token.transfer(caller, transfer_amount);
                 
-                // Mark token has claimed
+                // Mark token_id has claimed
                 self.reward_tokens_claimed.entry(token_id).write(true);
             },
             DataResult::Err(_) => {

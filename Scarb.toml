@@ -28,4 +28,5 @@ unstable-add-statements-functions-debug-info = true
 unstable-add-statements-code-locations-debug-info = true
 inlining-strategy = "avoid"
 
-[[target.starknet-contract]] 
+[[target.starknet-contract]]
+build-external-contracts = ["beasts_nft::beasts_nft"] 
