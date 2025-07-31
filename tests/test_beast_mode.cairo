@@ -2,7 +2,8 @@ use starknet::{ContractAddress, contract_address_const};
 use snforge_std::{
     declare, DeclareResultTrait, ContractClassTrait, start_cheat_caller_address,
     stop_cheat_caller_address, start_cheat_block_number, stop_cheat_block_number,
-    start_cheat_block_hash, stop_cheat_block_hash, mock_call,
+    start_cheat_block_hash, stop_cheat_block_hash, start_cheat_block_timestamp,
+    stop_cheat_block_timestamp, mock_call,
 };
 use core::serde::Serde;
 
@@ -556,10 +557,14 @@ fn test_claim_reward_token() {
     // Mock ERC20 transfer
     mock_erc20_transfer_call(true);
 
+    // Set timestamp after delay period (opening_time + reward_token_delay + 1)
+    start_cheat_block_timestamp(beast_mode_address, 605801);
+
     // Call claim_reward_token as the token owner
     start_cheat_caller_address(beast_mode_address, player_address);
     beast_mode.claim_reward_token(token_id);
     stop_cheat_caller_address(beast_mode_address);
+    stop_cheat_block_timestamp(beast_mode_address);
 }
 
 #[test]
@@ -577,10 +582,14 @@ fn test_claim_reward_token_no_balance() {
     // Set contract reward token balance to 0
     mock_balance_of_zero_call();
 
+    // Set timestamp after delay period
+    start_cheat_block_timestamp(beast_mode_address, 605801);
+
     // This should panic
     start_cheat_caller_address(beast_mode_address, player_address);
     beast_mode.claim_reward_token(token_id);
     stop_cheat_caller_address(beast_mode_address);
+    stop_cheat_block_timestamp(beast_mode_address);
 }
 
 #[test]
@@ -599,10 +608,14 @@ fn test_claim_reward_token_not_owner() {
     // Set contract reward token balance
     mock_balance_of_large_call();
 
+    // Set timestamp after delay period
+    start_cheat_block_timestamp(beast_mode_address, 605801);
+
     // Call as PLAYER2 - should panic
     start_cheat_caller_address(beast_mode_address, caller_address);
     beast_mode.claim_reward_token(token_id);
     stop_cheat_caller_address(beast_mode_address);
+    stop_cheat_block_timestamp(beast_mode_address);
 }
 
 #[test]
@@ -626,6 +639,9 @@ fn test_claim_reward_token_already_claimed() {
     // Mock transfer for first successful claim
     mock_erc20_transfer_call(true);
 
+    // Set timestamp after delay period
+    start_cheat_block_timestamp(beast_mode_address, 605801);
+
     // First claim - should succeed
     start_cheat_caller_address(beast_mode_address, player_address);
     beast_mode.claim_reward_token(token_id);
@@ -633,6 +649,7 @@ fn test_claim_reward_token_already_claimed() {
     // Second claim - should panic
     beast_mode.claim_reward_token(token_id);
     stop_cheat_caller_address(beast_mode_address);
+    stop_cheat_block_timestamp(beast_mode_address);
 }
 
 #[test]
@@ -653,10 +670,14 @@ fn test_claim_reward_token_invalid_adventurer() {
     // Set adventurer level to return error
     mock_adventurer_level_error('INVALID_ADVENTURER');
 
+    // Set timestamp after delay period
+    start_cheat_block_timestamp(beast_mode_address, 605801);
+
     // This should panic
     start_cheat_caller_address(beast_mode_address, player_address);
     beast_mode.claim_reward_token(token_id);
     stop_cheat_caller_address(beast_mode_address);
+    stop_cheat_block_timestamp(beast_mode_address);
 }
 
 // ===========================================
@@ -917,9 +938,13 @@ fn test_reward_token_overflow_protection() {
     mock_adventurer_level_call(255_u8);
     mock_erc20_transfer_call(true);
     
+    // Set timestamp after delay period
+    start_cheat_block_timestamp(beast_mode_address, 605801);
+    
     start_cheat_caller_address(beast_mode_address, player);
     beast_mode.claim_reward_token(1_u64);
     stop_cheat_caller_address(beast_mode_address);
+    stop_cheat_block_timestamp(beast_mode_address);
 }
 
 #[test]
@@ -942,10 +967,14 @@ fn test_reward_token_balance_edge_case() {
     mock_adventurer_level_call(100_u8);
     mock_erc20_transfer_call(true);
     
+    // Set timestamp after delay period
+    start_cheat_block_timestamp(beast_mode_address, 605801);
+    
     // Should only transfer 1 wei (available balance), not 100 ether
     start_cheat_caller_address(beast_mode_address, player);
     beast_mode.claim_reward_token(1_u64);
     stop_cheat_caller_address(beast_mode_address);
+    stop_cheat_block_timestamp(beast_mode_address);
 }
 
 #[test]
@@ -961,6 +990,9 @@ fn test_reward_token_double_claim_attack() {
     mock_adventurer_level_call_once(10_u8);
     mock_erc20_transfer_call(true);
     
+    // Set timestamp after delay period
+    start_cheat_block_timestamp(beast_mode_address, 605801);
+    
     start_cheat_caller_address(beast_mode_address, player);
     
     // First claim succeeds
@@ -970,6 +1002,7 @@ fn test_reward_token_double_claim_attack() {
     beast_mode.claim_reward_token(1_u64);
     
     stop_cheat_caller_address(beast_mode_address);
+    stop_cheat_block_timestamp(beast_mode_address);
 }
 
 #[test]
@@ -1042,9 +1075,13 @@ fn test_reward_token_with_zero_level() {
     mock_adventurer_level_call(0_u8);
     mock_erc20_transfer_call(true);
     
+    // Set timestamp after delay period
+    start_cheat_block_timestamp(beast_mode_address, 605801);
+    
     start_cheat_caller_address(beast_mode_address, player);
     beast_mode.claim_reward_token(1_u64);
     stop_cheat_caller_address(beast_mode_address);
+    stop_cheat_block_timestamp(beast_mode_address);
 }
 
 #[test]
@@ -1122,4 +1159,135 @@ fn test_multiple_airdrop_calls() {
     
     stop_cheat_block_number(beast_mode.contract_address);
     stop_cheat_block_hash(beast_mode.contract_address, 1000);
+}
+
+// ===========================================
+// REWARD TOKEN DELAY TESTS
+// ===========================================
+
+#[test]
+#[should_panic(expected: ('Reward token not open yet',))]
+fn test_claim_reward_token_before_delay() {
+    let (beast_mode, _) = deploy_beast_mode_with_mocks();
+    let beast_mode_address = beast_mode.contract_address;
+    let player = contract_address_const::<PLAYER1>();
+    
+    // Set up mocks for valid claim
+    mock_owner_of_call(player);
+    mock_balance_of_large_call();
+    mock_adventurer_level_call(10_u8);
+    
+    // Set timestamp to before the delay period ends
+    // opening_time = 1000, reward_token_delay = 604800 (7 days)
+    // So reward tokens should be claimable after 1000 + 604800 = 605800
+    // Try to claim at 605799 (1 second before allowed)
+    start_cheat_block_timestamp(beast_mode_address, 605799);
+    start_cheat_caller_address(beast_mode_address, player);
+    
+    // This should fail with 'Reward token not open yet'
+    beast_mode.claim_reward_token(1_u64);
+    
+    stop_cheat_caller_address(beast_mode_address);
+    stop_cheat_block_timestamp(beast_mode_address);
+}
+
+#[test]
+fn test_claim_reward_token_exactly_at_delay() {
+    let (beast_mode, _) = deploy_beast_mode_with_mocks();
+    let beast_mode_address = beast_mode.contract_address;
+    let player = contract_address_const::<PLAYER1>();
+    
+    // Set up mocks for valid claim
+    mock_owner_of_call(player);
+    mock_balance_of_large_call();
+    mock_adventurer_level_call(10_u8);
+    mock_erc20_transfer_call(true);
+    
+    // Set timestamp to exactly when the delay period ends + 1 second
+    // opening_time = 1000, reward_token_delay = 604800 (7 days)
+    // So reward tokens should be claimable after 1000 + 604800 = 605800
+    // Try to claim at 605801 (1 second after allowed)
+    start_cheat_block_timestamp(beast_mode_address, 605801);
+    start_cheat_caller_address(beast_mode_address, player);
+    
+    // This should succeed
+    beast_mode.claim_reward_token(1_u64);
+    
+    stop_cheat_caller_address(beast_mode_address);
+    stop_cheat_block_timestamp(beast_mode_address);
+}
+
+#[test]
+fn test_claim_reward_token_well_after_delay() {
+    let (beast_mode, _) = deploy_beast_mode_with_mocks();
+    let beast_mode_address = beast_mode.contract_address;
+    let player = contract_address_const::<PLAYER1>();
+    
+    // Set up mocks for valid claim
+    mock_owner_of_call(player);
+    mock_balance_of_large_call();
+    mock_adventurer_level_call(10_u8);
+    mock_erc20_transfer_call(true);
+    
+    // Set timestamp to well after the delay period (30 days later)
+    // opening_time = 1000, reward_token_delay = 604800 (7 days)
+    // Try to claim at 1000 + 604800 + (30 * 86400) = 3193600 (37 days after opening)
+    start_cheat_block_timestamp(beast_mode_address, 3193600);
+    start_cheat_caller_address(beast_mode_address, player);
+    
+    // This should succeed
+    beast_mode.claim_reward_token(1_u64);
+    
+    stop_cheat_caller_address(beast_mode_address);
+    stop_cheat_block_timestamp(beast_mode_address);
+}
+
+#[test]
+#[should_panic(expected: ('Reward token not open yet',))]
+fn test_claim_reward_token_at_opening_time() {
+    let (beast_mode, _) = deploy_beast_mode_with_mocks();
+    let beast_mode_address = beast_mode.contract_address;
+    let player = contract_address_const::<PLAYER1>();
+    
+    // Set up mocks for valid claim
+    mock_owner_of_call(player);
+    mock_balance_of_large_call();
+    mock_adventurer_level_call(10_u8);
+    
+    // Set timestamp to exactly the opening time (but before delay ends)
+    // opening_time = 1000, should fail since delay hasn't passed
+    start_cheat_block_timestamp(beast_mode_address, 1000);
+    start_cheat_caller_address(beast_mode_address, player);
+    
+    // This should fail with 'Reward token not open yet'
+    beast_mode.claim_reward_token(1_u64);
+    
+    stop_cheat_caller_address(beast_mode_address);
+    stop_cheat_block_timestamp(beast_mode_address);
+}
+
+#[test]
+#[should_panic(expected: ('Reward token not open yet',))]
+fn test_claim_reward_token_boundary_condition() {
+    let (beast_mode, _) = deploy_beast_mode_with_mocks();
+    let beast_mode_address = beast_mode.contract_address;
+    let player = contract_address_const::<PLAYER1>();
+    
+    // Set up mocks for valid claim
+    mock_owner_of_call(player);
+    mock_balance_of_large_call();
+    mock_adventurer_level_call(10_u8);
+    
+    // Set timestamp to exactly opening_time + reward_token_delay
+    // This should fail because the condition is current_time > opening_time + delay (not >=)
+    // opening_time = 1000, reward_token_delay = 604800
+    // So at exactly 605800, it should still fail
+    start_cheat_block_timestamp(beast_mode_address, 605800);
+    start_cheat_caller_address(beast_mode_address, player);
+    
+    // This should fail because condition requires > not >=
+    beast_mode.claim_reward_token(1_u64);
+    
+    stop_cheat_caller_address(beast_mode_address);
+    stop_cheat_block_timestamp(beast_mode_address);
 }

@@ -54,6 +54,8 @@ pub mod beast_mode {
         #[substorage(v0)]
         ownable: OwnableComponent::Storage,
         #[allow(starknet::colliding_storage_paths)]
+        opening_time: u64,
+        #[allow(starknet::colliding_storage_paths)]
         game_token_address: ContractAddress,
         adventurer_systems_address: ContractAddress,
         game_collectable_address: ContractAddress,
@@ -98,6 +100,7 @@ pub mod beast_mode {
         self.ownable.initializer(starknet::get_caller_address());
 
         // Initialize storage
+        self.opening_time.write(opening_time);
         self.game_token_address.write(game_token_address);
         self.adventurer_systems_address.write(adventurer_systems_address);
         self.game_collectable_address.write(game_collectable_address);
@@ -274,9 +277,12 @@ pub mod beast_mode {
         self.airdrop_count.write(airdrop_count);
     }
 
-    // TODO: Add delay when claiming reward token is available, check token_id minted time (8 days to avoid free week)
     #[external(v0)]
     fn claim_reward_token(ref self: ContractState, token_id: u64) {
+        let opening_time = self.opening_time.read();
+        let current_time = starknet::get_block_timestamp();
+        assert(current_time > opening_time + self.reward_token_delay.read(), 'Reward token not open yet');
+
         let game_token_address = self.game_token_address.read();
         let game_token = IERC721Dispatcher { contract_address: game_token_address };
         
