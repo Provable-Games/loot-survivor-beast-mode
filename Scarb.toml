@@ -6,7 +6,7 @@ edition = "2024_07"
 
 [dependencies]
 starknet = "2.10.1"
-game_components_metagame = { git = "https://github.com/Provable-Games/game-components.git", branch = "feat/ticket-booth", submodules = ["packages/metagame"] }
+game_components_metagame = { git = "https://github.com/Provable-Games/game-components.git", submodules = ["packages/metagame"] }
 beasts_nft = { git = "https://github.com/Provable-Games/beasts.git", branch = "main" }
 openzeppelin_token = "1.0.0"
 openzeppelin_access = "1.0.0"

@@ -7,3 +7,5 @@ Scarb.lock
 .starknet-foundry/
 .snfoundry_cache/
 snfoundry_trace/
+.env
+accounts/
