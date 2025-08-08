@@ -127,7 +127,7 @@ pub mod beast_mode {
     #[external(v0)]
     fn claim_beast(
         ref self: ContractState, adventurer_id: u64, beast_id: u8, prefix: u8, suffix: u8,
-    ) {
+    ) -> u256 {
         // Read contract addresses
         let game_token_address = self.game_token_address.read();
         let game_collectable_address = self.game_collectable_address.read();
@@ -164,7 +164,7 @@ pub mod beast_mode {
                 };
 
                 // Mint the beast NFT
-                beasts_nft
+                let token_id: u256 = beasts_nft
                     .mint(
                         game_token.owner_of(adventurer_id.into()),
                         beast_id,
@@ -175,8 +175,13 @@ pub mod beast_mode {
                         shiny,
                         animated,
                     );
+
+                token_id
             },
-            DataResult::Err(_) => { core::panic_with_felt252('Invalid collectable'.into()); },
+            DataResult::Err(_e) => {
+                core::panic_with_felt252('Invalid collectable'.into());
+                0
+            },
         }
     }
 
