@@ -116,8 +116,8 @@ pub mod beast_mode {
                 ticket_receiver_address,
                 Option::Some(game_token_address),
                 Option::Some(settings_id),
-                Option::Some(0), // start_time
-                Option::Some(0), // expiration_time
+                Option::None, // games start_time
+                Option::None, // games expiration_time
                 Option::Some("https://lootsurvivor.io"),
                 Option::Some(renderer_address),
                 Option::Some(golden_pass),

@@ -23,37 +23,38 @@ echo "Contract file found: $CONTRACT_FILE"
 
 # Constructor parameters for beast_mode contract
 OPENING_TIME="1704067200"  # Timestamp for when the game opens
-GAME_TOKEN_ADDRESS="0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7"  # ETH token
-GAME_COLLECTABLE_ADDRESS="0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7"  # Replace with actual address
-ADVENTURER_SYSTEMS_ADDRESS="0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7"  # Replace with actual address
-BEAST_NFT_ADDRESS="0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7"  # Replace with actual address
-LEGACY_BEASTS_ADDRESS="0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7"  # Replace with actual address
-PAYMENT_TOKEN="0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7"  # ETH token
-REWARD_TOKEN="0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7"  # Replace with actual address
+GAME_TOKEN_ADDRESS="0x28f822883acaa344d04b5d15ec28557f94f32b126b6aab0aff887471e6b986a" # DM game_token_systems
+GAME_COLLECTABLE_ADDRESS="0x3a3110175c256bd02c5b89d600a82e15c691568bf8da1ffe06ffbfb3cc7a292"  # DM beast_systems address
+ADVENTURER_SYSTEMS_ADDRESS="0x39309ae0beab7a6694589e6ec0e75c2e658ac43449704a24b1d1883d1e288a3"  # DM adventurer_systems address
+BEAST_NFT_ADDRESS="0x0660e6dc65db95f11bf2e44f3f3c3e376147504ce298cf42958d451ad11da8e6"  # Beast NFT V2
+LEGACY_BEASTS_ADDRESS="0x0" # Beast NFT V1
+PAYMENT_TOKEN="0x0468ce7715f7aea17b1632736877c36371c3b1354eb9611e8bb9035c0563963f"  # Dungeon ticket token
+REWARD_TOKEN="0x064fd80fcb41d00214430574a0aa19d21cc5d6452aeb4996f31b6e9ba4f466a0"  # Survivor Token
 REWARD_TOKEN_DELAY="86400"  # 24 hours in seconds
-RENDERER_ADDRESS="0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7"  # Replace with actual address
-TICKET_RECEIVER_ADDRESS="0x418ed348930686c844fda4556173457d3f71ae547262406d271de534af6b35e"
-SETTINGS_ID="1"
-# u256 is represented as two u128 values (low, high) in Cairo
-# 1 ETH = 1000000000000000000 wei
+RENDERER_ADDRESS="0x26feb6f69f7b0dffaf46443ebac716b0f315c3470c807d23a9e99e2ae0f722"  # DM renderer address
+TICKET_RECEIVER_ADDRESS="0x01492BB8B748c4a503F3232ba3D9308571bAAbf0F17b48AB17d5D105d61223C9" # Recycler address
+SETTINGS_ID="0"
+
 # Split into low and high parts for u256
-COST_TO_PLAY_LOW="1000000000000000000"
+COST_TO_PLAY_LOW="1000000000000000000" # 1 Dungeon ticket
 COST_TO_PLAY_HIGH="0"
 
 # Golden Pass definitions
 # Format: "address:cooldown:game_exp_type:game_exp_value:pass_exp"
-# game_exp_type: 0=Fixed, 1=Dynamic
+# game_exp_type: 0=None, 1=Fixed, 2=Dynamic
 # Set to empty string for no golden passes
 
 # Golden token - 23hr cooldown, dynamic 10 days game expiration, no pass expiration
-GOLDEN_TOKEN="0x418ed348930686c844fda4556173457d3f71ae547262406d271de534af6b35e:3600:1:86400:0"
+GOLDEN_TOKEN="0x031d69dbf2f3057f8c52397d0054b43e6ee386eb6b3454fa66a3d2b770a5c2da:3600:2:86400:0"
 
 # Bloberts - 8 days cooldown, fixed 7 days game expiration, 7 days pass expiration
-BLOBERTS="0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7:7200:0:43200:1735689600"
+BLOBERTS="0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7:7200:1:43200:1735689600"
 
 # Add golden passes to the array if needed
 # For now, keeping it empty as per original intent
-GOLDEN_PASSES=""
+GOLDEN_PASSES="
+$GOLDEN_TOKEN
+"
 
 # Function to build golden pass array
 build_golden_pass_array() {
@@ -70,14 +71,14 @@ build_golden_pass_array() {
         # Skip empty lines
         [[ -z "${line// }" ]] && continue
         
-        
         IFS=':' read -r address cooldown exp_type exp_value pass_exp <<< "$line"
         
+        # Build the struct format for golden pass
         if [[ $first == true ]]; then
-            passes="($address,($cooldown,$exp_type:$exp_value,$pass_exp))"
+            passes="($address,$cooldown,$exp_type,$exp_value,$pass_exp)"
             first=false
         else
-            passes="$passes,($address,($cooldown,$exp_type:$exp_value,$pass_exp))"
+            passes="$passes,($address,$cooldown,$exp_type,$exp_value,$pass_exp)"
         fi
     done <<< "$GOLDEN_PASSES"
     
@@ -133,7 +134,22 @@ echo ""
 if [ "$GOLDEN_PASS_ARRAY" = "[]" ]; then
     GOLDEN_PASS_PARAM="0"
 else
-    GOLDEN_PASS_PARAM="$GOLDEN_PASS_ARRAY"
+    # Count the number of golden passes
+    PASS_COUNT=$(echo "$GOLDEN_PASSES" | grep -c '^[^[:space:]]' || true)
+    
+    # Parse golden passes into individual parameters
+    GOLDEN_PASS_PARAMS=""
+    while IFS= read -r line; do
+        # Skip empty lines
+        [[ -z "${line// }" ]] && continue
+        
+        IFS=':' read -r address cooldown exp_type exp_value pass_exp <<< "$line"
+        
+        # Add each field as a separate parameter
+        GOLDEN_PASS_PARAMS="$GOLDEN_PASS_PARAMS $address $cooldown $exp_type $exp_value $pass_exp"
+    done <<< "$GOLDEN_PASSES"
+    
+    GOLDEN_PASS_PARAM="$PASS_COUNT$GOLDEN_PASS_PARAMS"
 fi
 
 echo "Executing deployment..."
