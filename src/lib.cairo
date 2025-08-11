@@ -27,6 +27,7 @@ use interfaces::{
 };
 
 // External interface imports
+use game_components_minigame::interface::{IMinigameDispatcher, IMinigameDispatcherTrait};
 use beasts_nft::interfaces::{IBeastsDispatcher, IBeastsDispatcherTrait};
 use openzeppelin_token::erc721::interface::{IERC721Dispatcher, IERC721DispatcherTrait};
 use openzeppelin_token::erc20::interface::{IERC20Dispatcher, IERC20DispatcherTrait};
@@ -136,7 +137,8 @@ pub mod beast_mode {
         // Create dispatchers
         let beast_systems = IBeastSystemsDispatcher { contract_address: game_collectable_address };
         let beasts_nft = IBeastsDispatcher { contract_address: beast_nft_address };
-        let game_token = IERC721Dispatcher { contract_address: game_token_address };
+        let minigame = IMinigameDispatcher { contract_address: game_token_address };
+        let game_token = IERC721Dispatcher { contract_address: minigame.token_address() };
 
         // Calculate entity hash and validate collectable
         let entity_hash = beast_systems.get_beast_hash(beast_id, prefix, suffix);
@@ -288,7 +290,8 @@ pub mod beast_mode {
         );
 
         let game_token_address = self.game_token_address.read();
-        let game_token = IERC721Dispatcher { contract_address: game_token_address };
+        let minigame = IMinigameDispatcher { contract_address: game_token_address };
+        let game_token = IERC721Dispatcher { contract_address: minigame.token_address() };
 
         // Check if caller owns the token
         let caller = starknet::get_caller_address();
