@@ -45,7 +45,7 @@ COST_TO_PLAY_HIGH="0"
 # Set to empty string for no golden passes
 
 # Golden token - 23hr cooldown, dynamic 10 days game expiration, no pass expiration
-GOLDEN_TOKEN="0x031d69dbf2f3057f8c52397d0054b43e6ee386eb6b3454fa66a3d2b770a5c2da:3600:2:86400:0"
+GOLDEN_TOKEN="0x031d69dbf2f3057f8c52397d0054b43e6ee386eb6b3454fa66a3d2b770a5c2da:86400:2:864000:0"
 
 # Bloberts - 8 days cooldown, fixed 7 days game expiration, 7 days pass expiration
 BLOBERTS="0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7:7200:1:43200:1735689600"
