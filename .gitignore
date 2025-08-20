@@ -9,3 +9,4 @@ Scarb.lock
 snfoundry_trace/
 .env
 accounts/
+.DS_Store
