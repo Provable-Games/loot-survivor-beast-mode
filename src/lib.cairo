@@ -60,6 +60,7 @@ pub mod beast_mode {
         game_collectable_address: ContractAddress,
         legacy_beasts_address: ContractAddress,
         beast_nft_address: ContractAddress,
+        free_games_claimer_address: ContractAddress,
         reward_token: ContractAddress,
         reward_token_delay: u64,
         reward_tokens_claimed: Map<u64, bool>,
@@ -94,6 +95,7 @@ pub mod beast_mode {
         ticket_receiver_address: ContractAddress,
         settings_id: u32,
         cost_to_play: u256,
+        free_games_claimer_address: ContractAddress
     ) {
         // Initialize ownable component with deployer as owner
         self.ownable.initializer(starknet::get_caller_address());
@@ -105,6 +107,7 @@ pub mod beast_mode {
         self.game_collectable_address.write(game_collectable_address);
         self.beast_nft_address.write(beast_nft_address);
         self.legacy_beasts_address.write(legacy_beasts_address);
+        self.free_games_claimer_address.write(free_games_claimer_address);
         self.reward_token.write(reward_token);
         self.reward_token_delay.write(reward_token_delay);
         self
@@ -336,6 +339,29 @@ pub mod beast_mode {
 
         // Mark token_id has claimed
         self.reward_tokens_claimed.entry(token_id).write(true);
+    }
+
+    #[external(v0)]
+    fn claim_free_game(ref self: ContractState, to: ContractAddress, player_name: Option<felt252>) -> u64 {
+        assert(starknet::get_caller_address() == self.free_games_claimer_address.read(), 'Not Allowed');
+
+        let opening_time = self.opening_time.read();
+        let current_time = starknet::get_block_timestamp();
+        let claim_expiration = opening_time + self.reward_token_delay.read(); 
+        assert(
+            current_time < claim_expiration,
+            'Opening campaign has ended',
+        );
+
+        let token_id = self.ticket_booth.mint_game(
+            player_name,
+            to,
+            false,
+            Option::Some(opening_time),
+            Option::Some(claim_expiration),
+        );
+
+        token_id
     }
 
     // Getter functions

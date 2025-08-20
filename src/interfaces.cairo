@@ -48,6 +48,7 @@ pub trait IBeastMode<T> {
     fn claim_reward_token(ref self: T, token_id: u64);
     fn initiate_airdrop(ref self: T);
     fn airdrop_legacy_beasts(ref self: T, limit: u16);
+    fn claim_free_game(ref self: T, to: ContractAddress, player_name: Option<felt252>) -> u64;
 
     // Owner-only functions
     fn update_opening_time(ref self: T, new_opening_time: u64);
