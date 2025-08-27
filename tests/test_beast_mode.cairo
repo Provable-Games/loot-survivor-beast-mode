@@ -68,6 +68,8 @@ fn deploy_beast_nft() -> IBeastsDispatcher {
     symbol.serialize(ref calldata);
     base_uri.serialize(ref calldata);
     calldata.append(owner.into());
+    calldata.append(owner.into());
+    calldata.append(500);
 
     let (contract_address, _) = contract.deploy(@calldata).unwrap();
     IBeastsDispatcher { contract_address }
@@ -97,13 +99,14 @@ fn deploy_beast_mode_with_fork() -> (IBeastModeDispatcher, IBeastsDispatcher) {
                 LEGACY_BEASTS_MAINNET_ADDRESS().into(), // Use real mainnet address
                 PAYMENT_TOKEN_ADDRESS().into(),
                 REWARD_TOKEN_ADDRESS().into(),
-                reward_token_delay.into(),
                 renderer_address.into(),
                 0, // empty golden pass array
                 ticket_receiver_address.into(),
                 settings_id.into(),
                 cost_to_play.low.into(),
                 cost_to_play.high.into(),
+                reward_token_delay.into(),
+                contract_address_const::<'FREE_GAMES_CLAIMER'>().into(),
             ],
         )
         .unwrap();
@@ -143,13 +146,14 @@ fn deploy_beast_mode_with_mocks() -> (IBeastModeDispatcher, IBeastsDispatcher) {
                 contract_address_const::<'LEGACY_BEASTS'>().into(), // Mock address
                 PAYMENT_TOKEN_ADDRESS().into(),
                 REWARD_TOKEN_ADDRESS().into(),
-                reward_token_delay.into(),
                 renderer_address.into(),
                 0, // empty golden pass array
                 ticket_receiver_address.into(),
                 settings_id.into(),
                 cost_to_play.low.into(),
                 cost_to_play.high.into(),
+                reward_token_delay.into(),
+                contract_address_const::<'FREE_GAMES_CLAIMER'>().into(),
             ],
         )
         .unwrap();
