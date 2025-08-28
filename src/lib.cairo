@@ -37,8 +37,13 @@ use openzeppelin_token::erc20::interface::{
     IERC20Dispatcher, IERC20DispatcherTrait, IERC20SafeDispatcher, IERC20SafeDispatcherTrait,
 };
 
-const FREE_PERIOD_REWARD_AMOUNT: u32 = 100_000; // 100000 Survivor token
-const NORMAL_REWARD_AMOUNT: u32 = 1_000_000; // 1000000 Survivor token
+// Survivor tokens locked in this contract
+// LS1 beasts double rewards: 1144 tokens
+// Beast rewards: 931_500 tokens
+// Reward pool: 2_000_000 tokens
+// Total: 2_932_644 tokens
+
+const REWARD_POOL: u32 = 2_000_000; // 2 million Survivor tokens
 const REWARD_TOKEN_DECIMALS: u256 = 1_000_000_000_000_000_000; // 18 decimals
 
 #[starknet::contract]
@@ -73,7 +78,6 @@ pub mod beast_mode {
         free_games_claimer_address: ContractAddress,
         reward_token: ContractAddress,
         reward_tokens_claimed: u32,
-        free_period_tokens_claimed: u32,
         adventurer_claimed_reward: Map<u64, bool>,
         airdrop_vrf_seed: felt252,
         airdrop_block_number: u64,
@@ -303,7 +307,7 @@ pub mod beast_mode {
     }
 
     #[external(v0)]
-    fn airdrop_legacy_beasts_reward_tokens(ref self: ContractState, limit: u16) {
+    fn airdrop_legacy_beast_reward_tokens(ref self: ContractState, limit: u16) {
         self.ownable.assert_only_owner();
 
         let mut token_airdrop_count = self.token_airdrop_count.read();
@@ -321,6 +325,10 @@ pub mod beast_mode {
             let beast = legacy_beasts_dispatcher.getBeast(token_airdrop_count.into());
 
             let reward_amount = get_beast_reward_amount(beast.id);
+            // Double the reward for LS1 beasts
+            if (token_airdrop_count <= 207) {
+                reward_amount *= 2;
+            }
             let reward_token = IERC20Dispatcher { contract_address: self.reward_token.read() };
             reward_token
                 .transfer(
@@ -332,44 +340,55 @@ pub mod beast_mode {
         self.token_airdrop_count.write(token_airdrop_count);
     }
 
-
-    #[external(v0)]
-    fn claim_free_period_reward_token(ref self: ContractState, token_id: u64) {
-        let opening_time = self.opening_time.read();
-        let current_time = starknet::get_block_timestamp();
-        let free_period_tokens_claimed = self.free_period_tokens_claimed.read();
-
-        assert(current_time < opening_time + self.free_games_duration.read(), 'Free period over');
-        assert(free_period_tokens_claimed < FREE_PERIOD_REWARD_AMOUNT, 'All tokens claimed');
-
-        let tokens_claimed = self
-            .handle_reward_claim(token_id, free_period_tokens_claimed, FREE_PERIOD_REWARD_AMOUNT);
-        self.free_period_tokens_claimed.write(free_period_tokens_claimed + tokens_claimed);
-    }
-
     #[external(v0)]
     fn claim_reward_token(ref self: ContractState, token_id: u64) {
-        let opening_time = self.opening_time.read();
-        let current_time = starknet::get_block_timestamp();
         let reward_tokens_claimed = self.reward_tokens_claimed.read();
+        assert(reward_tokens_claimed < REWARD_POOL, 'All tokens claimed');
 
-        assert(
-            current_time >= opening_time + self.free_games_duration.read(), 'Free period not over',
-        );
-        assert(reward_tokens_claimed < NORMAL_REWARD_AMOUNT, 'All tokens claimed');
+        // Check if caller owns the token
+        let caller = starknet::get_caller_address();
+        let minigame = IMinigameDispatcher { contract_address: self.game_token_address.read() };
+        let game_token = IERC721Dispatcher { contract_address: minigame.token_address() };
+        let token_owner = game_token.owner_of(token_id.into());
+        assert(caller == token_owner, 'Not token owner');
 
-        let game_token = IMinigameDispatcher { contract_address: self.game_token_address.read() };
-        let token_address = game_token.token_address();
-        let token_metadata = IMinigameTokenDispatcher { contract_address: token_address }
+        // Check if adventurer has already claimed
+        let already_claimed = self.adventurer_claimed_reward.entry(token_id).read();
+        assert!(!already_claimed, "Token already claimed");
+
+        // Check adventurer is from beast mode dungeon
+        let adventurer_systems_address = self.adventurer_systems_address.read();
+        let adventurer_systems = IAdventurerSystemsDispatcher {
+            contract_address: adventurer_systems_address,
+        };
+        let dungeon = adventurer_systems.get_adventurer_dungeon(token_id);
+        assert!(dungeon == get_contract_address(), "Adventurer not from beast mode dungeon");
+
+        // Get adventurer level to determine reward amount
+        let mut level = adventurer_systems.get_adventurer_level(token_id);
+
+        // Double reward after opening week
+        let token_metadata = IMinigameTokenDispatcher { contract_address: minigame.token_address() }
             .token_metadata(token_id);
-        assert!(
-            token_metadata.minted_at >= opening_time + self.free_games_duration.read(),
-            "Adventurer minted in free period",
-        );
+        if token_metadata.minted_at >= self.opening_time.read() + self.free_games_duration.read() {
+            level *= 2;
+        }
 
-        let tokens_claimed = self
-            .handle_reward_claim(token_id, reward_tokens_claimed, NORMAL_REWARD_AMOUNT);
-        self.reward_tokens_claimed.write(reward_tokens_claimed + tokens_claimed);
+        // Use the smaller of level or available rewards
+        let reward_amount: u32 = if level.into() + reward_tokens_claimed <= REWARD_POOL {
+            level.into()
+        } else {
+            REWARD_POOL - reward_tokens_claimed
+        };
+
+        // Transfer reward tokens to the caller
+        reward_token.transfer(caller, reward_amount.into() * REWARD_TOKEN_DECIMALS);
+
+        // Mark token_id has claimed
+        self.adventurer_claimed_reward.entry(token_id).write(true);
+
+        // Update reward tokens claimed
+        self.reward_tokens_claimed.write(reward_tokens_claimed + reward_amount);
     }
 
     #[external(v0)]
@@ -480,59 +499,6 @@ pub mod beast_mode {
             8
         } else {
             6
-        }
-    }
-
-    #[generate_trait]
-    impl InternalImpl of InternalTrait {
-        fn handle_reward_claim(
-            ref self: ContractState, token_id: u64, tokens_claimed: u32, total_amount: u32,
-        ) -> u32 {
-            let game_token_address = self.game_token_address.read();
-            let minigame = IMinigameDispatcher { contract_address: game_token_address };
-            let game_token = IERC721Dispatcher { contract_address: minigame.token_address() };
-
-            // Check if caller owns the token
-            let caller = starknet::get_caller_address();
-            let token_owner = game_token.owner_of(token_id.into());
-            assert(caller == token_owner, 'Not token owner');
-
-            let reward_token_address = self.reward_token.read();
-            let reward_token = IERC20Dispatcher { contract_address: reward_token_address };
-            // Check if contract has reward tokens available
-            let contract_balance = reward_token.balance_of(get_contract_address());
-            assert!(contract_balance > 0, "No reward tokens available");
-
-            // Check if token has already claimed
-            let already_claimed = self.adventurer_claimed_reward.entry(token_id).read();
-            assert!(!already_claimed, "Token already claimed");
-
-            let adventurer_systems_address = self.adventurer_systems_address.read();
-            let adventurer_systems = IAdventurerSystemsDispatcher {
-                contract_address: adventurer_systems_address,
-            };
-
-            // Check adventurer is from beast mode dungeon
-            let dungeon = adventurer_systems.get_adventurer_dungeon(token_id);
-            assert!(dungeon == get_contract_address(), "Adventurer not from beast mode dungeon");
-
-            // Get adventurer level to determine reward amount
-            let level = adventurer_systems.get_adventurer_level(token_id);
-
-            // Use the smaller of level or available rewards
-            let reward_amount = if level.into() + tokens_claimed <= total_amount {
-                level.into()
-            } else {
-                total_amount - tokens_claimed
-            };
-
-            // Transfer reward tokens to the caller
-            reward_token.transfer(caller, reward_amount.into() * REWARD_TOKEN_DECIMALS);
-
-            // Mark token_id has claimed
-            self.adventurer_claimed_reward.entry(token_id).write(true);
-
-            reward_amount
         }
     }
 }
