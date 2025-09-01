@@ -38,10 +38,10 @@ use openzeppelin_token::erc20::interface::{
 };
 
 // Survivor tokens locked in this contract
-// LS1 beasts double rewards: 1144 tokens
+// LS1 beasts extra rewards: 69180 tokens
 // Beast rewards: 931_500 tokens
 // Reward pool: 2_000_000 tokens
-// Total: 2_932_644 tokens
+// Total: 3_000_680 tokens
 
 const REWARD_POOL: u32 = 2_000_000; // 2 million Survivor tokens
 const REWARD_TOKEN_DECIMALS: u256 = 1_000_000_000_000_000_000; // 18 decimals
@@ -83,6 +83,7 @@ pub mod beast_mode {
         airdrop_block_number: u64,
         beast_airdrop_count: u16,
         token_airdrop_count: u16,
+        bonus_duration: u64,
     }
 
     #[event]
@@ -112,6 +113,7 @@ pub mod beast_mode {
         cost_to_play: u256,
         free_games_duration: u64,
         free_games_claimer_address: ContractAddress,
+        bonus_duration: u64,
     ) {
         // Initialize ownable component with deployer as owner
         self.ownable.initializer(starknet::get_caller_address());
@@ -126,6 +128,7 @@ pub mod beast_mode {
         self.free_games_claimer_address.write(free_games_claimer_address);
         self.reward_token.write(reward_token);
         self.free_games_duration.write(free_games_duration);
+        self.bonus_duration.write(bonus_duration);
         self
             .ticket_booth
             .initializer(
@@ -167,10 +170,10 @@ pub mod beast_mode {
             DataResult::Ok((
                 seed, level, health,
             )) => {
-                // Determine rare traits (4% chance each) using different parts of the seed
+                // Determine rare traits (5% chance each) using different parts of the seed
                 // Use the lower 32 bits for shiny trait
                 let shiny_seed = (seed & 0xFFFFFFFF_u64) % 10000_u64;
-                let shiny = if shiny_seed < 400_u64 {
+                let shiny = if shiny_seed < 500_u64 {
                     1_u8
                 } else {
                     0_u8
@@ -178,7 +181,7 @@ pub mod beast_mode {
 
                 // Use the upper 32 bits for animated trait
                 let animated_seed = ((seed / 0x100000000_u64) & 0xFFFFFFFF_u64) % 10000_u64;
-                let animated = if animated_seed < 400_u64 {
+                let animated = if animated_seed < 500_u64 {
                     1_u8
                 } else {
                     0_u8
@@ -271,10 +274,10 @@ pub mod beast_mode {
                     beast_seed, beast.id, beast.prefix, beast.suffix, beast.level, beast.health,
                 );
 
-            // Determine rare traits (8% chance each) using different parts of the seed
+            // Determine rare traits (10% chance each) using different parts of the seed
             // Use the lower 32 bits for shiny trait
             let shiny_seed = (beast_seed & 0xFFFFFFFF_u64) % 10000_u64;
-            let shiny = if shiny_seed < 800_u64 {
+            let shiny = if shiny_seed < 1000_u64 {
                 1_u8
             } else {
                 0_u8
@@ -282,7 +285,7 @@ pub mod beast_mode {
 
             // Use the upper 32 bits for animated trait
             let animated_seed = ((beast_seed / 0x100000000_u64) & 0xFFFFFFFF_u64) % 10000_u64;
-            let animated = if animated_seed < 800_u64 {
+            let animated = if animated_seed < 1000_u64 {
                 1_u8
             } else {
                 0_u8
@@ -324,10 +327,10 @@ pub mod beast_mode {
 
             let beast = legacy_beasts_dispatcher.getBeast(token_airdrop_count.into());
 
-            let reward_amount = get_beast_reward_amount(beast.id);
-            // Double the reward for LS1 beasts
-            if (token_airdrop_count <= 207) {
-                reward_amount *= 2;
+            let mut reward_amount = get_beast_reward_amount(beast.id);
+            // Add 30 to the reward for LS1 beasts
+            if (token_airdrop_count <= 2381) {
+                reward_amount += 30;
             }
             let reward_token = IERC20Dispatcher { contract_address: self.reward_token.read() };
             reward_token
@@ -365,12 +368,14 @@ pub mod beast_mode {
         assert!(dungeon == get_contract_address(), "Adventurer not from beast mode dungeon");
 
         // Get adventurer level to determine reward amount
-        let mut level = adventurer_systems.get_adventurer_level(token_id);
+        let mut level: u16 = adventurer_systems.get_adventurer_level(token_id).into();
 
         // Double reward after opening week
         let token_metadata = IMinigameTokenDispatcher { contract_address: minigame.token_address() }
             .token_metadata(token_id);
-        if token_metadata.minted_at >= self.opening_time.read() + self.free_games_duration.read() {
+        if token_metadata.minted_at >= self.opening_time.read() + self.free_games_duration.read() + self.bonus_duration.read() {
+            level *= 4;
+        } else if token_metadata.minted_at >= self.opening_time.read() + self.free_games_duration.read() {
             level *= 2;
         }
 
@@ -382,6 +387,7 @@ pub mod beast_mode {
         };
 
         // Transfer reward tokens to the caller
+        let reward_token = IERC20Dispatcher { contract_address: self.reward_token.read() };
         reward_token.transfer(caller, reward_amount.into() * REWARD_TOKEN_DECIMALS);
 
         // Mark token_id has claimed
