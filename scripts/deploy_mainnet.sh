@@ -23,21 +23,21 @@ echo "Contract file found: $CONTRACT_FILE"
 
 # Constructor parameters for beast_mode contract
 SETTINGS_ID="0"
-GAME_TOKEN_ADDRESS="0x7ae26eecf0274aabb31677753ff3a4e15beec7268fa1b104f73ce3c89202831" # DM game_token_systems
-GAME_COLLECTABLE_ADDRESS="0x265ee21c20ba5c7304a2b92c137d31ced8a7229ae3104194e140e9a31994144"  # DM beast_systems address
-ADVENTURER_SYSTEMS_ADDRESS="0x68770007cdd7bffa0e7ac7961157268c12dc7431e563fa443c7c8436cadc9e5"  # DM adventurer_systems address
-RENDERER_ADDRESS="0x5b9145205c2d618fee6a85dd72306ac017274fef5d4b1a583e414b9193244f2"  # DM renderer address
+GAME_TOKEN_ADDRESS="0x3c4d9b9ebdf13d6d997d14f945cbe7b01f86eb1c6a095c3ea0b273bc6700983" # DM game_token_systems
+GAME_COLLECTABLE_ADDRESS="0x322313206555d82f9b754b2e15a9efd3b91bb21118c51ef92697fbcd538b19b"  # DM beast_systems address
+ADVENTURER_SYSTEMS_ADDRESS="0x6dbb834304fcef3c3650d35de0bdd915ff53ab1805eb486a1e5508b8fe194ea"  # DM adventurer_systems address
+RENDERER_ADDRESS="0x4cec8242516365b22c0f3eee10c00d9ded32a10b485b1b487558b3848d3a2ce"  # DM renderer address
 
 OPENING_TIME="1704067200"  # Timestamp for when the game opens
-PAYMENT_TOKEN="0x025ff15ffd980fa811955d471abdf0d0db40f497a0d08e1fedd63545d1f7ab0d"  # Dungeon ticket token
-TICKET_RECEIVER_ADDRESS="0x01492BB8B748c4a503F3232ba3D9308571bAAbf0F17b48AB17d5D105d61223C9" # Recycler address
+PAYMENT_TOKEN="0x0124aeb495b947201f5fac96fd1138e326ad86195b98df6dec9009158a533b49"  # Dungeon ticket token
+TICKET_RECEIVER_ADDRESS="0x02CD97240DB3f679De98A729aE91EB996cAb9Fd92a9A578Df11a72F49bE1c356" # Recycler address
 COST_TO_PLAY_LOW="1000000000000000000" # 1 Dungeon ticket
 COST_TO_PLAY_HIGH="0"
 
-BEAST_NFT_ADDRESS="0x03d6e75fd8270a5098987713fa2c766a3edd0b03161ffeebe81b27dc48a3f335"  # Beast NFT V2
+BEAST_NFT_ADDRESS="0x0"  # Beast NFT V2
 LEGACY_BEASTS_ADDRESS="0x0" # Beast NFT V1
 
-REWARD_TOKEN="0x025ff15ffd980fa811955d471abdf0d0db40f497a0d08e1fedd63545d1f7ab0d"  # Survivor Token
+REWARD_TOKEN="0x0124aeb495b947201f5fac96fd1138e326ad86195b98df6dec9009158a533b49"  # Survivor Token
 FREE_GAMES_DURATION="86400"  # 24 hours in seconds
 FREE_GAMES_CLAIMER_ADDRESS="0x0"
 BONUS_DURATION="86400"  # 24 hours in seconds
@@ -48,7 +48,7 @@ BONUS_DURATION="86400"  # 24 hours in seconds
 # Set to empty string for no golden passes
 
 # Golden token - 23hr cooldown, dynamic 10 days game expiration, no pass expiration
-GOLDEN_TOKEN="0x031d69dbf2f3057f8c52397d0054b43e6ee386eb6b3454fa66a3d2b770a5c2da:86400:2:864000:0"
+GOLDEN_TOKEN="0x04F5e296c805126637552CF3930e857f380E7c078e8f00696dE4fC8545356B1D:86400:2:864000:0"
 
 # Bloberts - 8 days cooldown, fixed 7 days game expiration, 7 days pass expiration
 BLOBERTS="0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7:7200:1:43200:1735689600"
@@ -106,7 +106,7 @@ echo "Attempting declare without compiler version..."
 DECLARE_OUTPUT=$(starkli declare \
     --account "$STARKNET_ACCOUNT" \
     --private-key "$STARKNET_PRIVATE_KEY" \
-    --rpc https://starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_8/6Pzw4ZYxhoeS_bpcXV9oI5FjSCdKZE8d \
+    --rpc https://starknet-mainnet.g.alchemy.com/starknet/version/rpc/v0_8/6Pzw4ZYxhoeS_bpcXV9oI5FjSCdKZE8d \
     "$CONTRACT_FILE" 2>&1)
     
 DECLARE_EXIT_CODE=$?
@@ -210,7 +210,7 @@ echo ""
 echo "Checking account balance..."
 ACCOUNT_ADDRESS="0x418ed348930686c844fda4556173457d3f71ae547262406d271de534af6b35e"
 BALANCE_OUTPUT=$(starkli call \
-    --rpc https://starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_8/6Pzw4ZYxhoeS_bpcXV9oI5FjSCdKZE8d \
+    --rpc https://starknet-mainnet.g.alchemy.com/starknet/version/rpc/v0_8/6Pzw4ZYxhoeS_bpcXV9oI5FjSCdKZE8d \
     0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7 \
     balanceOf \
     $ACCOUNT_ADDRESS 2>&1 || echo "Balance check failed")
@@ -225,7 +225,7 @@ echo "Note: This may take a few minutes..."
 starkli deploy \
     --account "$STARKNET_ACCOUNT" \
     --private-key "$STARKNET_PRIVATE_KEY" \
-    --rpc https://starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_8/6Pzw4ZYxhoeS_bpcXV9oI5FjSCdKZE8d \
+    --rpc https://starknet-mainnet.g.alchemy.com/starknet/version/rpc/v0_8/6Pzw4ZYxhoeS_bpcXV9oI5FjSCdKZE8d \
     $CLASS_HASH \
     $OPENING_TIME \
     $GAME_TOKEN_ADDRESS \
@@ -259,4 +259,4 @@ echo "========================================="
 echo "Class Hash: $CLASS_HASH"
 echo ""
 echo "To view your deployed contract on Voyager:"
-echo "https://sepolia.voyager.online/class/$CLASS_HASH"
+echo "https://voyager.online/class/$CLASS_HASH"
