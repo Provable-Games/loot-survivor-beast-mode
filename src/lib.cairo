@@ -45,6 +45,7 @@ use openzeppelin_token::erc20::interface::{
 
 const REWARD_POOL: u32 = 2_000_000; // 2 million Survivor tokens
 const REWARD_TOKEN_DECIMALS: u256 = 1_000_000_000_000_000_000; // 18 decimals
+const MAX_FREE_GAMES: u32 = 586_000; // 586,000 free games
 
 #[starknet::contract]
 pub mod beast_mode {
@@ -76,6 +77,7 @@ pub mod beast_mode {
         beast_nft_address: ContractAddress,
         free_games_duration: u64,
         free_games_claimer_address: ContractAddress,
+        free_games_claimed: u32,
         reward_token: ContractAddress,
         reward_tokens_claimed: u32,
         adventurer_claimed_reward: Map<u64, bool>,
@@ -129,6 +131,7 @@ pub mod beast_mode {
         self.reward_token.write(reward_token);
         self.free_games_duration.write(free_games_duration);
         self.bonus_duration.write(bonus_duration);
+        self.free_games_claimed.write(0);
         self
             .ticket_booth
             .initializer(
@@ -373,9 +376,12 @@ pub mod beast_mode {
         // Double reward after opening week
         let token_metadata = IMinigameTokenDispatcher { contract_address: minigame.token_address() }
             .token_metadata(token_id);
-        if token_metadata.minted_at >= self.opening_time.read() + self.free_games_duration.read() + self.bonus_duration.read() {
+        if token_metadata.minted_at >= self.opening_time.read()
+            + self.free_games_duration.read()
+            + self.bonus_duration.read() {
             level *= 4;
-        } else if token_metadata.minted_at >= self.opening_time.read() + self.free_games_duration.read() {
+        } else if token_metadata.minted_at >= self.opening_time.read()
+            + self.free_games_duration.read() {
             level *= 2;
         }
 
@@ -404,6 +410,7 @@ pub mod beast_mode {
         assert(
             starknet::get_caller_address() == self.free_games_claimer_address.read(), 'Not Allowed',
         );
+        assert(self.free_games_claimed.read() < MAX_FREE_GAMES, 'All free games claimed');
 
         let opening_time = self.opening_time.read();
         let current_time = starknet::get_block_timestamp();
@@ -416,13 +423,50 @@ pub mod beast_mode {
                 player_name, to, false, Option::Some(opening_time), Option::Some(claim_expiration),
             );
 
+        self.free_games_claimed.write(self.free_games_claimed.read() + 1);
+
         token_id
     }
 
     // Getter functions
     #[external(v0)]
+    fn get_free_games_duration(self: @ContractState) -> u64 {
+        self.free_games_duration.read()
+    }
+
+    #[external(v0)]
+    fn get_bonus_duration(self: @ContractState) -> u64 {
+        self.bonus_duration.read()
+    }
+
+    #[external(v0)]
+    fn get_free_games_claimer_address(self: @ContractState) -> ContractAddress {
+        self.free_games_claimer_address.read()
+    }
+
+    #[external(v0)]
+    fn get_free_games_claimed(self: @ContractState) -> u32 {
+        self.free_games_claimed.read()
+    }
+
+    #[external(v0)]
+    fn get_reward_tokens_claimed(self: @ContractState) -> u32 {
+        self.reward_tokens_claimed.read()
+    }
+
+    #[external(v0)]
+    fn get_reward_token_address(self: @ContractState) -> ContractAddress {
+        self.reward_token.read()
+    }
+
+    #[external(v0)]
     fn get_game_collectable_address(self: @ContractState) -> ContractAddress {
         self.game_collectable_address.read()
+    }
+
+    #[external(v0)]
+    fn get_game_token_address(self: @ContractState) -> ContractAddress {
+        self.game_token_address.read()
     }
 
     #[external(v0)]
@@ -446,13 +490,8 @@ pub mod beast_mode {
     }
 
     #[external(v0)]
-    fn get_reward_token_address(self: @ContractState) -> ContractAddress {
-        self.reward_token.read()
-    }
-
-    #[external(v0)]
-    fn get_game_token_address(self: @ContractState) -> ContractAddress {
-        self.game_token_address.read()
+    fn has_adventurer_claimed_reward(self: @ContractState, token_id: u64) -> bool {
+        self.adventurer_claimed_reward.entry(token_id).read()
     }
 
     // Owner-only update functions
