@@ -86,6 +86,7 @@ pub mod beast_mode {
         beast_airdrop_count: u16,
         token_airdrop_count: u16,
         bonus_duration: u64,
+        jackpot_claimed: bool,
     }
 
     #[event]
@@ -429,6 +430,32 @@ pub mod beast_mode {
         token_id
     }
 
+    #[external(v0)]
+    fn claim_jackpot(ref self: ContractState, token_id: u256) {
+        assert(self.jackpot_claimed.read() == false, 'Jackpot already claimed');
+
+        let caller = starknet::get_caller_address();
+        let erc721 = IERC721Dispatcher { contract_address: self.beast_nft_address.read() };
+        let token_owner = erc721.owner_of(token_id);
+        assert(caller == token_owner, 'Not token owner');
+
+        let beasts = IBeastsDispatcher { contract_address: self.beast_nft_address.read() };
+        let beast = beasts.get_beast(token_id);
+        assert(beast.id == 29, 'Not dragon');
+        assert(beast.prefix == 3, 'Not armageddon');
+        assert(beast.suffix == 18, 'Not moon');
+
+        // Transfer jackpot amount to the caller
+        let erc20 = IERC20Dispatcher {
+            contract_address: 0x04718f5a0Fc34cC1AF16A1cdee98fFB20C31f5cD61D6Ab07201858f4287c938D
+                .try_into()
+                .unwrap(),
+        };
+        let amount = erc20.balance_of(get_contract_address());
+        erc20.transfer(token_owner, amount);
+        self.jackpot_claimed.write(true);
+    }
+
     // Getter functions
     #[external(v0)]
     fn get_free_games_duration(self: @ContractState) -> u64 {
@@ -493,6 +520,11 @@ pub mod beast_mode {
     #[external(v0)]
     fn has_adventurer_claimed_reward(self: @ContractState, token_id: u64) -> bool {
         self.adventurer_claimed_reward.entry(token_id).read()
+    }
+
+    #[external(v0)]
+    fn jackpot_claimed(self: @ContractState) -> bool {
+        self.jackpot_claimed.read()
     }
 
     // Owner-only update functions
