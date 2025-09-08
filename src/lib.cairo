@@ -372,6 +372,7 @@ pub mod beast_mode {
 
         // Get adventurer level to determine reward amount
         let mut level: u16 = adventurer_systems.get_adventurer_level(token_id).into();
+        assert!(level > 2, "Adventurer must be level 3 or higher");
 
         // Double reward after opening week
         let token_metadata = IMinigameTokenDispatcher { contract_address: minigame.token_address() }
