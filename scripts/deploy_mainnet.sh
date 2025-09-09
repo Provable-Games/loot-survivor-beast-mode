@@ -22,13 +22,15 @@ fi
 echo "Contract file found: $CONTRACT_FILE"
 
 # Constructor parameters for beast_mode contract
-SETTINGS_ID="0"
-GAME_TOKEN_ADDRESS="0x3c4d9b9ebdf13d6d997d14f945cbe7b01f86eb1c6a095c3ea0b273bc6700983" # DM game_token_systems
-GAME_COLLECTABLE_ADDRESS="0x322313206555d82f9b754b2e15a9efd3b91bb21118c51ef92697fbcd538b19b"  # DM beast_systems address
-ADVENTURER_SYSTEMS_ADDRESS="0x6dbb834304fcef3c3650d35de0bdd915ff53ab1805eb486a1e5508b8fe194ea"  # DM adventurer_systems address
-RENDERER_ADDRESS="0x4cec8242516365b22c0f3eee10c00d9ded32a10b485b1b487558b3848d3a2ce"  # DM renderer address
+OWNER="0x418ed348930686c844fda4556173457d3f71ae547262406d271de534af6b35e"
 
-OPENING_TIME="1704067200"  # Timestamp for when the game opens
+SETTINGS_ID="0"
+GAME_TOKEN_ADDRESS="0x3559f0cd8dec9ac4a67347ca1d2f68a235b1c8ac27a9267774fc42ef2844d10" # DM game_token_systems
+GAME_COLLECTABLE_ADDRESS="0x242ecbf03acbbeb693b92361341df50b01daed3f510b8149f5b05c5c38756a6"  # DM beast_systems address
+ADVENTURER_SYSTEMS_ADDRESS="0x2fe9d4b4e17b460b42205a691530fda3d21d9878416b4d381542cc81f238ae7"  # DM adventurer_systems address
+RENDERER_ADDRESS="0x7efc32898a450887823f7ddc693237355cb5936ab2f7ab5f1ba0d273d744d20"  # DM renderer address
+
+OPENING_TIME="1757420824"  # Timestamp for when the game opens
 PAYMENT_TOKEN="0x0124aeb495b947201f5fac96fd1138e326ad86195b98df6dec9009158a533b49"  # Dungeon ticket token
 TICKET_RECEIVER_ADDRESS="0x02CD97240DB3f679De98A729aE91EB996cAb9Fd92a9A578Df11a72F49bE1c356" # Recycler address
 COST_TO_PLAY_LOW="1000000000000000000" # 1 Dungeon ticket
@@ -37,21 +39,18 @@ COST_TO_PLAY_HIGH="0"
 BEAST_NFT_ADDRESS="0x0"  # Beast NFT V2
 LEGACY_BEASTS_ADDRESS="0x0" # Beast NFT V1
 
-REWARD_TOKEN="0x0124aeb495b947201f5fac96fd1138e326ad86195b98df6dec9009158a533b49"  # Survivor Token
-FREE_GAMES_DURATION="86400"  # 24 hours in seconds
+REWARD_TOKEN="0x004878d1148318a31829523Ee9c6a5eE563aF6cD87f90a30809e5B0d27db8A9b"  # Survivor Token
+FREE_GAMES_DURATION="21600"  # 6 hours in seconds
 FREE_GAMES_CLAIMER_ADDRESS="0x0"
-BONUS_DURATION="86400"  # 24 hours in seconds
+BONUS_DURATION="21600"  # 6 hours in seconds
 
 # Golden Pass definitions
 # Format: "address:cooldown:game_exp_type:game_exp_value:pass_exp"
 # game_exp_type: 0=None, 1=Fixed, 2=Dynamic
 # Set to empty string for no golden passes
 
-# Golden token - 23hr cooldown, dynamic 10 days game expiration, no pass expiration
-GOLDEN_TOKEN="0x04F5e296c805126637552CF3930e857f380E7c078e8f00696dE4fC8545356B1D:86400:2:864000:0"
-
-# Bloberts - 8 days cooldown, fixed 7 days game expiration, 7 days pass expiration
-BLOBERTS="0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7:7200:1:43200:1735689600"
+# Golden token - 7 days cooldown, dynamic 10 days game expiration, no pass expiration
+GOLDEN_TOKEN="0x027838dea749f41c6f8a44fcfa791788e6101080c1b3cd646a361f653ad10e2d:604800:2:864000:0"
 
 # Add golden passes to the array if needed
 # For now, keeping it empty as per original intent
@@ -161,6 +160,7 @@ echo ""
 # Deploy with timeout and better error handling
 # First, let's print all parameters for debugging
 echo "Deploy command parameters:"
+echo "  0. OWNER: $OWNER"
 echo "  1. OPENING_TIME: $OPENING_TIME"
 echo "  2. GAME_TOKEN_ADDRESS: $GAME_TOKEN_ADDRESS"
 echo "  3. GAME_COLLECTABLE_ADDRESS: $GAME_COLLECTABLE_ADDRESS"
@@ -227,6 +227,7 @@ starkli deploy \
     --private-key "$STARKNET_PRIVATE_KEY" \
     --rpc https://starknet-mainnet.g.alchemy.com/starknet/version/rpc/v0_8/6Pzw4ZYxhoeS_bpcXV9oI5FjSCdKZE8d \
     $CLASS_HASH \
+    $OWNER \
     $OPENING_TIME \
     $GAME_TOKEN_ADDRESS \
     $GAME_COLLECTABLE_ADDRESS \

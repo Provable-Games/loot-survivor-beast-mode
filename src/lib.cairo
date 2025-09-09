@@ -101,6 +101,7 @@ pub mod beast_mode {
     #[constructor]
     fn constructor(
         ref self: ContractState,
+        owner: ContractAddress,
         opening_time: u64,
         game_token_address: ContractAddress,
         game_collectable_address: ContractAddress,
@@ -118,8 +119,7 @@ pub mod beast_mode {
         free_games_claimer_address: ContractAddress,
         bonus_duration: u64,
     ) {
-        // Initialize ownable component with deployer as owner
-        self.ownable.initializer(starknet::get_caller_address());
+        self.ownable.initializer(owner);
 
         // Initialize storage
         self.opening_time.write(opening_time);
