@@ -22,6 +22,8 @@ fi
 echo "Contract file found: $CONTRACT_FILE"
 
 # Constructor parameters for beast_mode contract
+OWNER="0x418ed348930686c844fda4556173457d3f71ae547262406d271de534af6b35e"
+
 SETTINGS_ID="0"
 GAME_TOKEN_ADDRESS="0x7ae26eecf0274aabb31677753ff3a4e15beec7268fa1b104f73ce3c89202831" # DM game_token_systems
 GAME_COLLECTABLE_ADDRESS="0x265ee21c20ba5c7304a2b92c137d31ced8a7229ae3104194e140e9a31994144"  # DM beast_systems address
@@ -39,7 +41,7 @@ LEGACY_BEASTS_ADDRESS="0x0" # Beast NFT V1
 
 REWARD_TOKEN="0x025ff15ffd980fa811955d471abdf0d0db40f497a0d08e1fedd63545d1f7ab0d"  # Survivor Token
 FREE_GAMES_DURATION="1209600"  # 14 days in seconds
-FREE_GAMES_CLAIMER_ADDRESS="0x00449ba21cb9df365f428022404a94e3ab714a3b75efae749dbe77d9f4c3ef3e"
+FREE_GAMES_CLAIMER_ADDRESS="0x05020cfc92600106df98213e8f4ab4057a87797162a1ec81a195c17f33459520"
 BONUS_DURATION="1209600"  # 14 days in seconds
 
 # Golden Pass definitions
@@ -161,6 +163,7 @@ echo ""
 # Deploy with timeout and better error handling
 # First, let's print all parameters for debugging
 echo "Deploy command parameters:"
+echo "  0. OWNER: $OWNER"
 echo "  1. OPENING_TIME: $OPENING_TIME"
 echo "  2. GAME_TOKEN_ADDRESS: $GAME_TOKEN_ADDRESS"
 echo "  3. GAME_COLLECTABLE_ADDRESS: $GAME_COLLECTABLE_ADDRESS"
@@ -227,6 +230,7 @@ starkli deploy \
     --private-key "$STARKNET_PRIVATE_KEY" \
     --rpc https://starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_8/6Pzw4ZYxhoeS_bpcXV9oI5FjSCdKZE8d \
     $CLASS_HASH \
+    $OWNER \
     $OPENING_TIME \
     $GAME_TOKEN_ADDRESS \
     $GAME_COLLECTABLE_ADDRESS \

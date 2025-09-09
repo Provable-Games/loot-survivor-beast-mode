@@ -39,10 +39,10 @@ COST_TO_PLAY_HIGH="0"
 BEAST_NFT_ADDRESS="0x0"  # Beast NFT V2
 LEGACY_BEASTS_ADDRESS="0x0" # Beast NFT V1
 
-REWARD_TOKEN="0x004878d1148318a31829523Ee9c6a5eE563aF6cD87f90a30809e5B0d27db8A9b"  # Survivor Token
+REWARD_TOKEN="0x051c4B1fe3BF6774b87AD0B15ef5D1472759076e42944Fff9b9F641Ff13E5BBe"  # Survivor Token
 FREE_GAMES_DURATION="21600"  # 6 hours in seconds
 FREE_GAMES_CLAIMER_ADDRESS="0x0"
-BONUS_DURATION="21600"  # 6 hours in seconds
+BONUS_DURATION="21600"  # 6 hours in secondsd
 
 # Golden Pass definitions
 # Format: "address:cooldown:game_exp_type:game_exp_value:pass_exp"

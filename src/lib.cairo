@@ -386,10 +386,10 @@ pub mod beast_mode {
         if token_metadata.minted_at >= self.opening_time.read()
             + self.free_games_duration.read()
             + self.bonus_duration.read() {
-            level *= 4;
+            level *= 2;
         } else if token_metadata.minted_at >= self.opening_time.read()
             + self.free_games_duration.read() {
-            level *= 2;
+            level *= 4;
         }
 
         // Use the smaller of level or available rewards
