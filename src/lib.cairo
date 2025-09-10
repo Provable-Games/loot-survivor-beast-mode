@@ -14,10 +14,6 @@ use openzeppelin_access::ownable::OwnableComponent;
 // Local modules
 pub mod interfaces;
 pub mod structs;
-mod vrf;
-
-// Local VRF import
-use vrf::{VRFImpl};
 
 // Local imports
 use interfaces::{
@@ -81,7 +77,6 @@ pub mod beast_mode {
         reward_token: ContractAddress,
         reward_tokens_claimed: u32,
         adventurer_claimed_reward: Map<u64, bool>,
-        airdrop_vrf_seed: felt252,
         airdrop_block_number: u64,
         beast_airdrop_count: u16,
         token_airdrop_count: u16,
@@ -221,10 +216,6 @@ pub mod beast_mode {
         let existing_block_number = self.airdrop_block_number.read();
         assert(existing_block_number == 0, 'Airdrop already initiated');
 
-        // Get VRF seed
-        let vrf_seed = VRFImpl::seed();
-        self.airdrop_vrf_seed.write(vrf_seed);
-
         // Get block number
         let block_number = get_block_number() + 100;
         self.airdrop_block_number.write(block_number);
@@ -253,7 +244,6 @@ pub mod beast_mode {
         let mut beast_airdrop_count = self.beast_airdrop_count.read();
         assert(beast_airdrop_count.into() < total_supply, 'All beasts airdropped');
 
-        let vrf_seed = self.airdrop_vrf_seed.read();
         let block_seed = get_block_hash_syscall(airdrop_block_number).unwrap_syscall();
 
         let new_limit = beast_airdrop_count + limit;
@@ -263,7 +253,7 @@ pub mod beast_mode {
             beast_airdrop_count += 1;
 
             let airdrop_hash = poseidon_hash_span(
-                [beast_airdrop_count.into(), block_seed.into(), vrf_seed].span(),
+                [beast_airdrop_count.into(), block_seed.into()].span(),
             );
             let (beast_seed, _) = felt_to_two_u64(airdrop_hash);
 
