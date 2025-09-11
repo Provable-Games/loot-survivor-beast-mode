@@ -24,7 +24,7 @@ echo "Contract file found: $CONTRACT_FILE"
 # Constructor parameters for beast_mode contract
 OWNER="0x418ed348930686c844fda4556173457d3f71ae547262406d271de534af6b35e"
 
-SETTINGS_ID="3"
+SETTINGS_ID="0"
 GAME_TOKEN_ADDRESS="0x3559f0cd8dec9ac4a67347ca1d2f68a235b1c8ac27a9267774fc42ef2844d10" # DM game_token_systems
 GAME_COLLECTABLE_ADDRESS="0x242ecbf03acbbeb693b92361341df50b01daed3f510b8149f5b05c5c38756a6"  # DM beast_systems address
 ADVENTURER_SYSTEMS_ADDRESS="0x2fe9d4b4e17b460b42205a691530fda3d21d9878416b4d381542cc81f238ae7"  # DM adventurer_systems address
@@ -40,9 +40,9 @@ BEAST_NFT_ADDRESS="0x0785c6bd0f02b7e9158d89259a3424da34f3b8cffa30937cac8c4bdceab
 LEGACY_BEASTS_ADDRESS="0x0158160018d590d93528995b340260e65aedd76d28a686e9daa5c4e8fad0c5dd" # Beast NFT V1
 
 REWARD_TOKEN="0x042DD777885AD2C116be96d4D634abC90A26A790ffB5871E037Dd5Ae7d2Ec86B"  # Survivor Token
-FREE_GAMES_DURATION="21600"  # 6 hours in seconds
+FREE_GAMES_DURATION="1209600"  # 14 days in seconds
 FREE_GAMES_CLAIMER_ADDRESS="0x04420d7bd423db496c694d8afa797d8646801826918a4b00b0132b859409b0aa"
-BONUS_DURATION="21600"  # 6 hours in secondsd
+BONUS_DURATION="1209600"  # 14 days in seconds
 
 # Golden Pass definitions
 # Format: "address:cooldown:game_exp_type:game_exp_value:pass_exp"
