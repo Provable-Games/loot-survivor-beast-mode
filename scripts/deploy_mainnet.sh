@@ -22,7 +22,7 @@ fi
 echo "Contract file found: $CONTRACT_FILE"
 
 # Constructor parameters for beast_mode contract
-OWNER="0x418ed348930686c844fda4556173457d3f71ae547262406d271de534af6b35e"
+OWNER="0x0248f76e72088853c3fE96CAd8F7f075c9e514B862A6e9a3D5957EA5522eBb6D"
 
 SETTINGS_ID="0"
 GAME_TOKEN_ADDRESS="0x3559f0cd8dec9ac4a67347ca1d2f68a235b1c8ac27a9267774fc42ef2844d10" # DM game_token_systems
