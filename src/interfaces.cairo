@@ -50,7 +50,7 @@ pub trait IBeastMode<T> {
     fn get_reward_tokens_claimed(self: @T) -> u32;
     fn get_beast_airdrop_count(self: @T) -> u16;
     fn has_adventurer_claimed_reward(self: @T, token_id: u64) -> bool;
-    fn jackpot_claimed(self: @T) -> bool;
+    fn jackpot_claimed(self: @T, token_id: u64) -> bool;
 
     // State-changing functions
     fn claim_beast(ref self: T, adventurer_id: u64, beast_id: u8, prefix: u8, suffix: u8) -> u256;
@@ -58,8 +58,9 @@ pub trait IBeastMode<T> {
     fn initiate_airdrop(ref self: T);
     fn airdrop_legacy_beasts(ref self: T, limit: u16);
     fn airdrop_legacy_beast_reward_tokens(ref self: T, limit: u16);
+    fn airdrop_top_legacy_adventurers(ref self: T, limit: u16);
     fn claim_free_game(ref self: T, to: ContractAddress, player_name: Option<felt252>) -> u64;
-    fn claim_jackpot(ref self: T, token_id: u256);
+    fn claim_jackpot(ref self: T, token_id: u64);
 
     // Owner-only functions
     fn update_opening_time(ref self: T, new_opening_time: u64);
