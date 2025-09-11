@@ -323,9 +323,11 @@ pub mod beast_mode {
             let beast = legacy_beasts_dispatcher.getBeast(token_airdrop_count.into());
 
             let mut reward_amount = get_beast_reward_amount(beast.id);
-            // Add 30 to the reward for LS1 beasts
+            // Add 108 to the reward for LS1 beasts
             if (token_airdrop_count <= 2381) {
-                reward_amount += 30;
+                reward_amount += 108;
+            } else {
+                reward_amount += 36;
             }
             let reward_token = IERC20Dispatcher { contract_address: self.reward_token.read() };
             reward_token
