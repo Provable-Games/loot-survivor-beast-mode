@@ -21,6 +21,7 @@ pub trait IBeastSystems<T> {
 #[starknet::interface]
 pub trait IAdventurerSystems<T> {
     fn get_adventurer_level(self: @T, adventurer_id: u64) -> u8;
+    fn get_adventurer_health(self: @T, adventurer_id: u64) -> u16;
     fn get_adventurer_dungeon(self: @T, adventurer_id: u64) -> ContractAddress;
 }
 

@@ -14,6 +14,7 @@ use openzeppelin_access::ownable::OwnableComponent;
 // Local modules
 pub mod interfaces;
 pub mod structs;
+pub mod data;
 
 // Local imports
 use interfaces::{
@@ -80,8 +81,9 @@ pub mod beast_mode {
         airdrop_block_number: u64,
         beast_airdrop_count: u16,
         token_airdrop_count: u16,
+        top_adventurer_airdrop_count: u16,
         bonus_duration: u64,
-        jackpot_claimed: bool,
+        jackpot_claimed: Map<u64, bool>,
     }
 
     #[event]
@@ -127,7 +129,6 @@ pub mod beast_mode {
         self.reward_token.write(reward_token);
         self.free_games_duration.write(free_games_duration);
         self.bonus_duration.write(bonus_duration);
-        self.free_games_claimed.write(0);
         self
             .ticket_booth
             .initializer(
@@ -338,16 +339,42 @@ pub mod beast_mode {
     }
 
     #[external(v0)]
+    fn airdrop_top_legacy_adventurers(ref self: ContractState, limit: u16) {
+        self.ownable.assert_only_owner();
+
+        let mut airdrop_count = self.top_adventurer_airdrop_count.read();
+        assert(airdrop_count < 1000, 'All top adventurers airdropped');
+
+        let erc721 = IERC721Dispatcher {
+            contract_address: 0x018108b32cea514a78ef1b0e4a0753e855cdf620bc0565202c02456f618c4dc4
+                .try_into()
+                .unwrap(),
+        };
+        let new_limit = airdrop_count + limit;
+
+        while airdrop_count < new_limit && airdrop_count < 1000 {
+            let adventurer_id = *data::top_adventurer_ids().at(airdrop_count.into());
+
+            let position = airdrop_count + 1;
+            let mut reward_amount = get_top_adventurer_reward_amount(position);
+
+            let reward_token = IERC20Dispatcher { contract_address: self.reward_token.read() };
+            reward_token
+                .transfer(
+                    erc721.owner_of(adventurer_id.into()),
+                    reward_amount.into() * REWARD_TOKEN_DECIMALS,
+                );
+
+            airdrop_count += 1;
+        };
+
+        self.top_adventurer_airdrop_count.write(airdrop_count);
+    }
+
+    #[external(v0)]
     fn claim_reward_token(ref self: ContractState, token_id: u64) {
         let reward_tokens_claimed = self.reward_tokens_claimed.read();
         assert(reward_tokens_claimed < REWARD_POOL, 'All tokens claimed');
-
-        // Check if caller owns the token
-        let caller = starknet::get_caller_address();
-        let minigame = IMinigameDispatcher { contract_address: self.game_token_address.read() };
-        let game_token = IERC721Dispatcher { contract_address: minigame.token_address() };
-        let token_owner = game_token.owner_of(token_id.into());
-        assert(caller == token_owner, 'Not token owner');
 
         // Check if adventurer has already claimed
         let already_claimed = self.adventurer_claimed_reward.entry(token_id).read();
@@ -361,6 +388,10 @@ pub mod beast_mode {
         let dungeon = adventurer_systems.get_adventurer_dungeon(token_id);
         assert!(dungeon == get_contract_address(), "Adventurer not from beast mode dungeon");
 
+        // Check adventurer health
+        let health = adventurer_systems.get_adventurer_health(token_id);
+        assert!(health == 0, "Adventurer must be dead");
+
         // Get adventurer level to determine reward amount
         let mut level: u16 = adventurer_systems.get_adventurer_level(token_id).into();
         assert!(level > 2, "Adventurer must be level 3 or higher");
@@ -371,6 +402,7 @@ pub mod beast_mode {
         }
 
         // Double reward after opening week
+        let minigame = IMinigameDispatcher { contract_address: self.game_token_address.read() };
         let token_metadata = IMinigameTokenDispatcher { contract_address: minigame.token_address() }
             .token_metadata(token_id);
         if token_metadata.minted_at >= self.opening_time.read()
@@ -389,9 +421,12 @@ pub mod beast_mode {
             REWARD_POOL - reward_tokens_claimed
         };
 
-        // Transfer reward tokens to the caller
+        // Transfer reward tokens to the token owner
+        let game_token = IERC721Dispatcher { contract_address: minigame.token_address() };
+        let token_owner = game_token.owner_of(token_id.into());
+
         let reward_token = IERC20Dispatcher { contract_address: self.reward_token.read() };
-        reward_token.transfer(caller, reward_amount.into() * REWARD_TOKEN_DECIMALS);
+        reward_token.transfer(token_owner, reward_amount.into() * REWARD_TOKEN_DECIMALS);
 
         // Mark token_id has claimed
         self.adventurer_claimed_reward.entry(token_id).write(true);
@@ -426,19 +461,30 @@ pub mod beast_mode {
     }
 
     #[external(v0)]
-    fn claim_jackpot(ref self: ContractState, token_id: u256) {
-        assert(self.jackpot_claimed.read() == false, 'Jackpot already claimed');
+    fn claim_jackpot(ref self: ContractState, token_id: u64) {
+        let already_claimed = self.jackpot_claimed.entry(token_id).read();
+        assert!(!already_claimed, "Token already claimed");
 
+        // Check token owner
         let caller = starknet::get_caller_address();
         let erc721 = IERC721Dispatcher { contract_address: self.beast_nft_address.read() };
-        let token_owner = erc721.owner_of(token_id);
+        let token_owner = erc721.owner_of(token_id.into());
         assert(caller == token_owner, 'Not token owner');
 
         let beasts = IBeastsDispatcher { contract_address: self.beast_nft_address.read() };
-        let beast = beasts.get_beast(token_id);
-        assert(beast.id == 29, 'Not dragon');
-        assert(beast.prefix == 3, 'Not armageddon');
-        assert(beast.suffix == 18, 'Not moon');
+        let beast = beasts.get_beast(token_id.into());
+        if (beast.id == 29) {
+            assert(beast.prefix == 18, 'Not demon');
+            assert(beast.suffix == 6, 'Not grasp');
+        } else if (beast.id == 1) {
+            assert(beast.prefix == 47, 'Not pain');
+            assert(beast.suffix == 11, 'Not whisper');
+        } else if (beast.id == 53) {
+            assert(beast.prefix == 61, 'Not torment');
+            assert(beast.suffix == 1, 'Not bane');
+        } else {
+            panic!("Invalid beast");
+        }
 
         // Transfer jackpot amount to the caller
         let erc20 = IERC20Dispatcher {
@@ -446,9 +492,9 @@ pub mod beast_mode {
                 .try_into()
                 .unwrap(),
         };
-        let amount = erc20.balance_of(get_contract_address());
+        let amount = 33333 * REWARD_TOKEN_DECIMALS;
         erc20.transfer(token_owner, amount);
-        self.jackpot_claimed.write(true);
+        self.jackpot_claimed.entry(token_id).write(true);
     }
 
     // Getter functions
@@ -518,8 +564,8 @@ pub mod beast_mode {
     }
 
     #[external(v0)]
-    fn jackpot_claimed(self: @ContractState) -> bool {
-        self.jackpot_claimed.read()
+    fn jackpot_claimed(self: @ContractState, token_id: u64) -> bool {
+        self.jackpot_claimed.entry(token_id).read()
     }
 
     // Owner-only update functions
@@ -572,6 +618,24 @@ pub mod beast_mode {
             8
         } else {
             6
+        }
+    }
+
+    fn get_top_adventurer_reward_amount(position: u16) -> u16 {
+        if (position == 1) {
+            25000
+        } else if (position == 2) {
+            10000
+        } else if (position == 3) {
+            5150
+        } else if (position <= 10) {
+            3000
+        } else if (position <= 50) {
+            2000
+        } else if (position <= 100) {
+            1000
+        } else {
+            150
         }
     }
 }
