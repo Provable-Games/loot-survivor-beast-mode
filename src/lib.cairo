@@ -20,7 +20,7 @@ pub mod data;
 use interfaces::{
     IBeastSystemsDispatcher, IBeastSystemsDispatcherTrait, ILegacyBeastsDispatcher,
     ILegacyBeastsDispatcherTrait, DataResult, IAdventurerSystemsDispatcher,
-    IAdventurerSystemsDispatcherTrait,
+    IAdventurerSystemsDispatcherTrait, IBeastModeDispatcher, IBeastModeDispatcherTrait,
 };
 
 // External interface imports
@@ -218,7 +218,12 @@ pub mod beast_mode {
         assert(existing_block_number == 0, 'Airdrop already initiated');
 
         // Get block number
-        let block_number = get_block_number() + 100;
+        let beast_mode = IBeastModeDispatcher {
+            contract_address: 0x04a346df886993b0ab17f1d5ae2dd203313484bbead83fdc404c55b237c42d43
+                .try_into()
+                .unwrap(),
+        };
+        let block_number = beast_mode.get_airdrop_block_number();
         self.airdrop_block_number.write(block_number);
 
         // Set airdrop count to 75
