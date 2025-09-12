@@ -269,6 +269,11 @@ pub mod beast_mode {
                     beast_seed, beast.id, beast.prefix, beast.suffix, beast.level, beast.health,
                 );
 
+            let beasts_nft = IBeastsDispatcher { contract_address: self.beast_nft_address.read() };
+            if beast_airdrop_count.into() <= beasts_nft.total_supply() {
+                continue;
+            }
+
             // Determine rare traits (10% chance each) using different parts of the seed
             // Use the lower 32 bits for shiny trait
             let shiny_seed = (beast_seed & 0xFFFFFFFF_u64) % 10000_u64;
@@ -287,7 +292,6 @@ pub mod beast_mode {
             };
 
             // Mint the beast NFT
-            let beasts_nft = IBeastsDispatcher { contract_address: self.beast_nft_address.read() };
             beasts_nft
                 .mint(
                     legacy_beasts_dispatcher.ownerOf(beast_airdrop_count.into()),
@@ -507,6 +511,13 @@ pub mod beast_mode {
         self.free_games_claimer_address.write(new_free_games_claimer_address);
     }
 
+    #[external(v0)]
+    fn withdraw_funds(ref self: ContractState, token_address: ContractAddress, amount: u256) {
+        self.ownable.assert_only_owner();
+        let token = IERC20Dispatcher { contract_address: token_address };
+        token.transfer(self.ownable.Ownable_owner.read(), amount);
+    }
+
     // Getter functions
     #[external(v0)]
     fn get_free_games_duration(self: @ContractState) -> u64 {
@@ -578,10 +589,16 @@ pub mod beast_mode {
         self.jackpot_claimed.entry(token_id).read()
     }
 
+    #[external(v0)]
+    fn dungeon_opening_time(self: @ContractState) -> u64 {
+        self.opening_time.read()
+    }
+
     // Owner-only update functions
     #[external(v0)]
     fn update_opening_time(ref self: ContractState, new_opening_time: u64) {
         self.ownable.assert_only_owner();
+        self.opening_time.write(new_opening_time);
         self.ticket_booth.update_opening_time_internal(new_opening_time);
     }
 
