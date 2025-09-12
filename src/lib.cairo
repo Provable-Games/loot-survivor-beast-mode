@@ -37,10 +37,10 @@ use openzeppelin_token::erc20::interface::{
 // Survivor tokens locked in this contract
 // LS1 beasts extra rewards: 69180 tokens
 // Beast rewards: 931_500 tokens
-// Reward pool: 2_000_000 tokens
-// Total: 3_000_680 tokens
+// Reward pool: 2_258_100 tokens
+// Total: 3,847,778 tokens
 
-const REWARD_POOL: u32 = 2_000_000; // 2 million Survivor tokens
+const REWARD_POOL: u32 = 2_258_100; // 2.25 million Survivor tokens
 const REWARD_TOKEN_DECIMALS: u256 = 1_000_000_000_000_000_000; // 18 decimals
 const MAX_FREE_GAMES: u32 = 586_000; // 586,000 free games
 
