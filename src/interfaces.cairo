@@ -61,6 +61,9 @@ pub trait IBeastMode<T> {
     fn airdrop_top_legacy_adventurers(ref self: T, limit: u16);
     fn claim_free_game(ref self: T, to: ContractAddress, player_name: Option<felt252>) -> u64;
     fn claim_jackpot(ref self: T, token_id: u64);
+    fn update_free_games_claimer_address(
+        ref self: T, new_free_games_claimer_address: ContractAddress,
+    );
 
     // Owner-only functions
     fn update_opening_time(ref self: T, new_opening_time: u64);

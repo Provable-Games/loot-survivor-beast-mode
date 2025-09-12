@@ -499,6 +499,14 @@ pub mod beast_mode {
         self.jackpot_claimed.entry(token_id).write(true);
     }
 
+    #[external(v0)]
+    fn update_free_games_claimer_address(
+        ref self: ContractState, new_free_games_claimer_address: ContractAddress,
+    ) {
+        self.ownable.assert_only_owner();
+        self.free_games_claimer_address.write(new_free_games_claimer_address);
+    }
+
     // Getter functions
     #[external(v0)]
     fn get_free_games_duration(self: @ContractState) -> u64 {
