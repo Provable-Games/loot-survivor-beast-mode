@@ -2,7 +2,7 @@ use core::poseidon::poseidon_hash_span;
 use core::traits::DivRem;
 use starknet::ContractAddress;
 use starknet::storage::{Map, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess};
-use starknet::{get_contract_address, get_block_number, SyscallResultTrait};
+use starknet::{get_contract_address, SyscallResultTrait};
 use starknet::syscalls::{get_block_hash_syscall};
 
 // External dependencies
@@ -71,7 +71,8 @@ pub mod beast_mode {
         adventurer_systems_address: ContractAddress,
         game_collectable_address: ContractAddress,
         legacy_beasts_address: ContractAddress,
-        beast_nft_address: ContractAddress,
+        beasts_nft_address: ContractAddress,
+        beasts_nft_old_address: ContractAddress,
         free_games_duration: u64,
         free_games_claimer_address: ContractAddress,
         free_games_claimed: u32,
@@ -103,7 +104,8 @@ pub mod beast_mode {
         game_token_address: ContractAddress,
         game_collectable_address: ContractAddress,
         adventurer_systems_address: ContractAddress,
-        beast_nft_address: ContractAddress,
+        beasts_nft_address: ContractAddress,
+        beasts_nft_old_address: ContractAddress,
         legacy_beasts_address: ContractAddress,
         payment_token: ContractAddress,
         reward_token: ContractAddress,
@@ -123,7 +125,8 @@ pub mod beast_mode {
         self.game_token_address.write(game_token_address);
         self.adventurer_systems_address.write(adventurer_systems_address);
         self.game_collectable_address.write(game_collectable_address);
-        self.beast_nft_address.write(beast_nft_address);
+        self.beasts_nft_address.write(beasts_nft_address);
+        self.beasts_nft_old_address.write(beasts_nft_old_address);
         self.legacy_beasts_address.write(legacy_beasts_address);
         self.free_games_claimer_address.write(free_games_claimer_address);
         self.reward_token.write(reward_token);
@@ -154,11 +157,11 @@ pub mod beast_mode {
         // Read contract addresses
         let game_token_address = self.game_token_address.read();
         let game_collectable_address = self.game_collectable_address.read();
-        let beast_nft_address = self.beast_nft_address.read();
+        let beasts_nft_address = self.beasts_nft_address.read();
 
         // Create dispatchers
         let beast_systems = IBeastSystemsDispatcher { contract_address: game_collectable_address };
-        let beasts_nft = IBeastsDispatcher { contract_address: beast_nft_address };
+        let beasts_nft = IBeastsDispatcher { contract_address: beasts_nft_address };
         let minigame = IMinigameDispatcher { contract_address: game_token_address };
         let game_token = IERC721Dispatcher { contract_address: minigame.token_address() };
 
@@ -238,22 +241,23 @@ pub mod beast_mode {
         let airdrop_block_number = self.airdrop_block_number.read();
         assert(airdrop_block_number != 0, 'Airdrop not initiated');
 
-        let current_block_number = get_block_number();
-        assert(current_block_number + 10 > airdrop_block_number, 'Airdrop not ready');
-
-        // Get legacy beast data
-        let legacy_beasts_dispatcher = ILegacyBeastsDispatcher {
-            contract_address: self.legacy_beasts_address.read(),
+        let beasts_nft_old = IBeastsDispatcher {
+            contract_address: self.beasts_nft_old_address.read(),
         };
-        let total_supply = legacy_beasts_dispatcher.tokenSupply();
+        let total_supply = beasts_nft_old.total_supply();
 
         let mut beast_airdrop_count = self.beast_airdrop_count.read();
         assert(beast_airdrop_count.into() < total_supply, 'All beasts airdropped');
 
         let block_seed = get_block_hash_syscall(airdrop_block_number).unwrap_syscall();
 
-        let new_limit = beast_airdrop_count + limit;
+        let beasts_nft = IBeastsDispatcher { contract_address: self.beasts_nft_address.read() };
+        let beast_systems = IBeastSystemsDispatcher {
+            contract_address: self.game_collectable_address.read(),
+        };
+        let erc721 = IERC721Dispatcher { contract_address: self.beasts_nft_old_address.read() };
 
+        let new_limit = beast_airdrop_count + limit;
         while beast_airdrop_count < new_limit
             && beast_airdrop_count < total_supply.try_into().unwrap() {
             beast_airdrop_count += 1;
@@ -262,51 +266,24 @@ pub mod beast_mode {
                 [beast_airdrop_count.into(), block_seed.into()].span(),
             );
             let (beast_seed, _) = felt_to_two_u64(airdrop_hash);
+            let beast = beasts_nft_old.get_beast(beast_airdrop_count.into());
 
-            let beast = legacy_beasts_dispatcher.getBeast(beast_airdrop_count.into());
-
-            // Save collectable entity
-            let beast_systems = IBeastSystemsDispatcher {
-                contract_address: self.game_collectable_address.read(),
-            };
             beast_systems
                 .premint_collectable(
                     beast_seed, beast.id, beast.prefix, beast.suffix, beast.level, beast.health,
                 );
 
-            let beasts_nft = IBeastsDispatcher { contract_address: self.beast_nft_address.read() };
-            if beast_airdrop_count.into() <= beasts_nft.total_supply() {
-                continue;
-            }
-
-            // Determine rare traits (10% chance each) using different parts of the seed
-            // Use the lower 32 bits for shiny trait
-            let shiny_seed = (beast_seed & 0xFFFFFFFF_u64) % 10000_u64;
-            let shiny = if shiny_seed < 1000_u64 {
-                1_u8
-            } else {
-                0_u8
-            };
-
-            // Use the upper 32 bits for animated trait
-            let animated_seed = ((beast_seed / 0x100000000_u64) & 0xFFFFFFFF_u64) % 10000_u64;
-            let animated = if animated_seed < 1000_u64 {
-                1_u8
-            } else {
-                0_u8
-            };
-
             // Mint the beast NFT
             beasts_nft
                 .mint(
-                    legacy_beasts_dispatcher.ownerOf(beast_airdrop_count.into()),
+                    erc721.owner_of(beast_airdrop_count.into()),
                     beast.id,
                     beast.prefix,
                     beast.suffix,
                     beast.level,
                     beast.health,
-                    shiny,
-                    animated,
+                    beast.shiny,
+                    beast.animated,
                 );
         };
 
@@ -478,11 +455,11 @@ pub mod beast_mode {
 
         // Check token owner
         let caller = starknet::get_caller_address();
-        let erc721 = IERC721Dispatcher { contract_address: self.beast_nft_address.read() };
+        let erc721 = IERC721Dispatcher { contract_address: self.beasts_nft_address.read() };
         let token_owner = erc721.owner_of(token_id.into());
         assert(caller == token_owner, 'Not token owner');
 
-        let beasts = IBeastsDispatcher { contract_address: self.beast_nft_address.read() };
+        let beasts = IBeastsDispatcher { contract_address: self.beasts_nft_address.read() };
         let beast = beasts.get_beast(token_id.into());
         if (beast.id == 29) {
             assert(beast.prefix == 18, 'Not demon');
@@ -565,8 +542,8 @@ pub mod beast_mode {
     }
 
     #[external(v0)]
-    fn get_beast_nft_address(self: @ContractState) -> ContractAddress {
-        self.beast_nft_address.read()
+    fn get_beasts_nft_address(self: @ContractState) -> ContractAddress {
+        self.beasts_nft_address.read()
     }
 
     #[external(v0)]
