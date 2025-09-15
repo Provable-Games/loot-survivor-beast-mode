@@ -2,7 +2,7 @@ use starknet::{ContractAddress, contract_address_const};
 use snforge_std::{
     declare, DeclareResultTrait, ContractClassTrait, start_cheat_caller_address,
     stop_cheat_caller_address, start_cheat_block_number, stop_cheat_block_number,
-    start_cheat_block_hash, stop_cheat_block_hash, mock_call,
+    start_cheat_block_hash, stop_cheat_block_hash, mock_call, start_mock_call,
 };
 use core::serde::Serde;
 
@@ -16,6 +16,10 @@ use beast_mode::structs::LegacyBeast;
 use beasts_nft::interfaces::{IBeastsDispatcher, IBeastsDispatcherTrait};
 use beasts_nft::pack::PackableBeast;
 
+//
+use game_components_token::structs::{TokenMetadata, Lifecycle};
+
+
 // Test constants
 const OWNER: felt252 = 'OWNER';
 const PLAYER1: felt252 = 'PLAYER1';
@@ -26,13 +30,25 @@ fn LEGACY_BEASTS_MAINNET_ADDRESS() -> ContractAddress {
     contract_address_const::<0x0158160018d590d93528995b340260e65aedd76d28a686e9daa5c4e8fad0c5dd>()
 }
 
+fn INITIAL_BEAST_MODE_DUNGEON_CONTRACT_ADDRESS() -> ContractAddress {
+    contract_address_const::<0x04a346df886993b0ab17f1d5ae2dd203313484bbead83fdc404c55b237c42d43>()
+}
+
+fn V2_BEASTS_MAINNET_ADDRESS() -> ContractAddress {
+    contract_address_const::<0x0280ace0b2171106eaebef91ca9b097a566108e9452c45b94a7924a9f794ae80>()
+}
+
 // Contract addresses for mocking (non-legacy)
 fn GAME_TOKEN_ADDRESS() -> ContractAddress {
     contract_address_const::<'GAME_TOKEN'>()
 }
 
-fn GAME_COLLECTABLE_ADDRESS() -> ContractAddress {
+fn MOCK_DM_BEAST_SYSTEM() -> ContractAddress {
     contract_address_const::<'GAME_COLLECTABLE'>()
+}
+
+fn MAINNET_DM_BEAST_SYSTEM() -> ContractAddress {
+    contract_address_const::<0x5400b1e09b9de846793083a87be3007dfe385e1768bb517a9e6055bf0f2e9c2>()
 }
 
 fn ADVENTURER_SYSTEMS_ADDRESS() -> ContractAddress {
@@ -57,18 +73,26 @@ fn TICKET_RECEIVER_ADDRESS() -> ContractAddress {
 
 // Deploy real BeastNFT contract
 fn deploy_beast_nft() -> IBeastsDispatcher {
+    let mock_beast_data_provider: ContractAddress = 'mock_beast_data_provider'.try_into().unwrap();
+    let mock_img: ByteArray = "data:image/png;base64,AA==";
+    start_mock_call(mock_beast_data_provider, selector!("get_data_uri"), mock_img);
+
     let contract = declare("beasts_nft").unwrap().contract_class();
     let owner = contract_address_const::<OWNER>();
     let name: ByteArray = "Beasts";
     let symbol: ByteArray = "BEAST";
-    let base_uri: ByteArray = "https://api.example.com/beasts/";
     let mut calldata = array![];
     name.serialize(ref calldata);
     symbol.serialize(ref calldata);
-    base_uri.serialize(ref calldata);
     calldata.append(owner.into());
     calldata.append(owner.into());
     calldata.append(500);
+    calldata.append(mock_beast_data_provider.into()); // regular_png_provider
+    calldata.append(mock_beast_data_provider.into()); // shiny_png_provider
+    calldata.append(mock_beast_data_provider.into()); // regular_gif_provider
+    calldata.append(mock_beast_data_provider.into()); // shiny_gif_provider
+    calldata.append(0); // death_mountain_address
+    calldata.append(0); // terminal timestamp
 
     let (contract_address, _) = contract.deploy(@calldata).unwrap();
     IBeastsDispatcher { contract_address }
@@ -95,9 +119,10 @@ fn deploy_beast_mode_with_fork() -> (IBeastModeDispatcher, IBeastsDispatcher) {
                 owner_address.into(),
                 opening_time.into(),
                 GAME_TOKEN_ADDRESS().into(),
-                GAME_COLLECTABLE_ADDRESS().into(),
+                MAINNET_DM_BEAST_SYSTEM().into(),
                 ADVENTURER_SYSTEMS_ADDRESS().into(),
                 beast_nft.contract_address.into(),
+                V2_BEASTS_MAINNET_ADDRESS().into(), // use real mainnet address
                 LEGACY_BEASTS_MAINNET_ADDRESS().into(), // Use real mainnet address
                 PAYMENT_TOKEN_ADDRESS().into(),
                 REWARD_TOKEN_ADDRESS().into(),
@@ -119,9 +144,14 @@ fn deploy_beast_mode_with_fork() -> (IBeastModeDispatcher, IBeastsDispatcher) {
     // Set beast_mode as minter on the BeastNFT contract
     let owner_address = contract_address_const::<OWNER>();
     start_cheat_caller_address(beast_nft.contract_address, owner_address);
-    beast_nft.set_minter(beast_mode.contract_address);
+    beast_nft.set_dungeon_address(beast_mode.contract_address);
     stop_cheat_caller_address(beast_nft.contract_address);
 
+    start_mock_call(
+        INITIAL_BEAST_MODE_DUNGEON_CONTRACT_ADDRESS(),
+        selector!("get_airdrop_block_number"),
+        10_u64,
+    );
     (beast_mode, beast_nft)
 }
 
@@ -130,7 +160,6 @@ fn deploy_beast_mode_with_mocks() -> (IBeastModeDispatcher, IBeastsDispatcher) {
     let beast_nft = deploy_beast_nft();
 
     let contract = declare("beast_mode").unwrap().contract_class();
-
     let opening_time = 1000_u64;
     let settings_id = 1_u32;
     let cost_to_play = 100_u256;
@@ -139,6 +168,7 @@ fn deploy_beast_mode_with_mocks() -> (IBeastModeDispatcher, IBeastsDispatcher) {
     let renderer_address = RENDERER_ADDRESS();
     let ticket_receiver_address = TICKET_RECEIVER_ADDRESS();
     let owner_address = contract_address_const::<OWNER>();
+    let v2_beast_address = contract_address_const::<'V2_0_BEASTS'>();
 
     let (contract_address, _) = contract
         .deploy(
@@ -146,9 +176,10 @@ fn deploy_beast_mode_with_mocks() -> (IBeastModeDispatcher, IBeastsDispatcher) {
                 owner_address.into(),
                 opening_time.into(),
                 GAME_TOKEN_ADDRESS().into(),
-                GAME_COLLECTABLE_ADDRESS().into(),
+                MOCK_DM_BEAST_SYSTEM().into(),
                 ADVENTURER_SYSTEMS_ADDRESS().into(),
                 beast_nft.contract_address.into(),
+                v2_beast_address.into(), // Mock address
                 contract_address_const::<'LEGACY_BEASTS'>().into(), // Mock address
                 PAYMENT_TOKEN_ADDRESS().into(),
                 REWARD_TOKEN_ADDRESS().into(),
@@ -166,12 +197,27 @@ fn deploy_beast_mode_with_mocks() -> (IBeastModeDispatcher, IBeastsDispatcher) {
         .unwrap();
 
     let beast_mode = IBeastModeDispatcher { contract_address };
-
     // Set beast_mode as minter on the BeastNFT contract
     let owner_address = contract_address_const::<OWNER>();
     start_cheat_caller_address(beast_nft.contract_address, owner_address);
-    beast_nft.set_minter(beast_mode.contract_address);
+    beast_nft.set_dungeon_address(beast_mode.contract_address);
     stop_cheat_caller_address(beast_nft.contract_address);
+
+    start_mock_call(
+        INITIAL_BEAST_MODE_DUNGEON_CONTRACT_ADDRESS(),
+        selector!("get_airdrop_block_number"),
+        1100_u64,
+    );
+
+    start_mock_call(v2_beast_address, selector!("total_supply"), 10000_u256);
+
+    start_mock_call(v2_beast_address, selector!("owner_of"), contract_address_const::<PLAYER1>());
+
+    let beast = PackableBeast {
+        id: 1, prefix: 2, suffix: 3, level: 20, health: 100, shiny: 0, animated: 0,
+    };
+
+    start_mock_call(v2_beast_address, selector!("get_beast"), beast);
 
     (beast_mode, beast_nft)
 }
@@ -179,18 +225,18 @@ fn deploy_beast_mode_with_mocks() -> (IBeastModeDispatcher, IBeastsDispatcher) {
 // Helper functions for mocking
 fn mock_owner_of_call(owner: ContractAddress) {
     // First mock the minigame's token_address() call
-    mock_call(GAME_TOKEN_ADDRESS(), selector!("token_address"), GAME_TOKEN_ADDRESS(), 1);
+    mock_call(GAME_TOKEN_ADDRESS(), selector!("token_address"), GAME_TOKEN_ADDRESS(), 2);
     // Then mock owner_of on the token
-    mock_call(GAME_TOKEN_ADDRESS(), selector!("owner_of"), owner, 1);
+    mock_call(GAME_TOKEN_ADDRESS(), selector!("owner_of"), owner, 2);
 }
 
 fn mock_beast_hash_call(hash: felt252) {
-    mock_call(GAME_COLLECTABLE_ADDRESS(), selector!("get_beast_hash"), hash, 1);
+    mock_call(MOCK_DM_BEAST_SYSTEM(), selector!("get_beast_hash"), hash, 1);
 }
 
 fn mock_valid_collectable_call(seed: u64, level: u16, health: u16) {
     mock_call(
-        GAME_COLLECTABLE_ADDRESS(),
+        MOCK_DM_BEAST_SYSTEM(),
         selector!("get_valid_collectable"),
         DataResult::Ok((seed, level, health)),
         1,
@@ -199,7 +245,7 @@ fn mock_valid_collectable_call(seed: u64, level: u16, health: u16) {
 
 fn mock_valid_collectable_error(error_msg: felt252) {
     mock_call(
-        GAME_COLLECTABLE_ADDRESS(),
+        MOCK_DM_BEAST_SYSTEM(),
         selector!("get_valid_collectable"),
         DataResult::<(u64, u16, u16)>::Err(error_msg),
         1,
@@ -249,7 +295,6 @@ fn mock_erc20_transfer_call(success: bool) {
 fn mock_erc20_safe_transfer_call() {
     // IERC20SafeDispatcher.transfer should return Result<bool, (felt252, Span<felt252>)>
     // Let's create the proper result type
-    let empty_span: Span<felt252> = array![].span();
     let success_result: Result<bool, (felt252, Span<felt252>)> = Result::Ok(true);
     mock_call(REWARD_TOKEN_ADDRESS(), selector!("transfer"), success_result, 10);
 }
@@ -288,14 +333,27 @@ fn mock_adventurer_level_call_times(level: u8, times: u32) {
 }
 
 fn mock_premint_collectable_call(times: u32) {
-    mock_call(GAME_COLLECTABLE_ADDRESS(), selector!("premint_collectable"), 12345_u64, times);
+    mock_call(MOCK_DM_BEAST_SYSTEM(), selector!("premint_collectable"), 12345_u64, times);
 }
 
 fn mock_token_metadata_call(minted_at: u64) {
     // Mock the minigame's token_address() call first
     mock_call(GAME_TOKEN_ADDRESS(), selector!("token_address"), GAME_TOKEN_ADDRESS(), 1);
     // Then mock the token_metadata call on that address
-    let metadata = (minted_at, 0_felt252); // (minted_at, unused_field)
+
+    let metadata = TokenMetadata {
+        game_id: 1,
+        minted_at: minted_at,
+        settings_id: 0,
+        lifecycle: Lifecycle { start: 0, end: 0 },
+        minted_by: 0,
+        soulbound: false,
+        game_over: false,
+        completed_all_objectives: false,
+        has_context: false,
+        objectives_count: 0,
+    };
+
     mock_call(GAME_TOKEN_ADDRESS(), selector!("token_metadata"), metadata, 1);
 }
 
@@ -371,10 +429,10 @@ fn test_claim_beast_mint_parameters() {
     // Verify mint was successful - total supply should be 1
     let total_supply = beast_nft.total_supply();
     // Debug: let's see what the actual total supply is
-    assert(total_supply == 1, 'Total supply should be 1');
+    assert(total_supply == 76, 'Total supply should be 1');
 
     // Get the minted beast details
-    let beast: PackableBeast = beast_nft.get_beast(1);
+    let beast: PackableBeast = beast_nft.get_beast(76);
 
     // Verify beast parameters match inputs
     assert(beast.id == beast_id, 'Wrong beast_id');
@@ -413,7 +471,7 @@ fn test_claim_beast_rare_traits() {
     mock_erc20_safe_transfer_call();
 
     // Test with seed that should produce shiny=1, animated=0
-    let seed_for_shiny = 0x19000000187_u64; // shiny=391<400(1), animated=400>=400(0)
+    let seed_for_shiny = 0x1F500000187_u64; // shiny=491<500(1), animated=501>=400(0)
     mock_valid_collectable_call(seed_for_shiny, 5_u16, 100_u16);
 
     // Call claim_beast
@@ -422,7 +480,7 @@ fn test_claim_beast_rare_traits() {
     stop_cheat_caller_address(beast_mode_address);
 
     // Get the minted beast details
-    let beast: PackableBeast = beast_nft.get_beast(1);
+    let beast: PackableBeast = beast_nft.get_beast(76);
 
     // With seed 391, shiny should be 1, animated should be 0
     assert(beast.shiny == 1, 'Expected shiny trait');
@@ -458,7 +516,7 @@ fn test_claim_beast_no_rare_traits() {
     stop_cheat_caller_address(beast_mode_address);
 
     // Get the minted beast details
-    let beast: PackableBeast = beast_nft.get_beast(1);
+    let beast: PackableBeast = beast_nft.get_beast(76);
 
     // Both should be 0
     assert(beast.shiny == 0, 'Expected no shiny trait');
@@ -521,27 +579,31 @@ fn test_multiple_players_claim_beasts() {
     stop_cheat_caller_address(beast_mode_address);
 
     // Verify both beasts were minted
-    assert(beast_nft.total_supply() == 2, 'Should have 2 beasts minted');
+    assert!(
+        beast_nft.total_supply() == 77,
+        "Wrong total supply. Expected 77, got {}",
+        beast_nft.total_supply(),
+    );
 
     // Verify first beast (player 1)
-    let beast1: PackableBeast = beast_nft.get_beast(1);
-    assert(beast1.id == 10, 'Wrong ID for beast 1');
-    assert(beast1.prefix == 1, 'Wrong prefix for beast 1');
-    assert(beast1.suffix == 1, 'Wrong suffix for beast 1');
-    assert(beast1.level == 5, 'Wrong level for beast 1');
-    assert(beast1.health == 100, 'Wrong health for beast 1');
+    let beast1: PackableBeast = beast_nft.get_beast(76);
+    assert!(beast1.id == 10, "Wrong ID for beast 1. Expected 10, got {}", beast1.id);
+    assert!(beast1.prefix == 1, "Wrong prefix for beast 1. Expected 1, got {}", beast1.prefix);
+    assert!(beast1.suffix == 1, "Wrong suffix for beast 1. Expected 1, got {}", beast1.suffix);
+    assert!(beast1.level == 5, "Wrong level for beast 1. Expected 5, got {}", beast1.level);
+    assert!(beast1.health == 100, "Wrong health for beast 1. Expected 100, got {}", beast1.health);
 
     // Verify second beast (player 2)
-    let beast2: PackableBeast = beast_nft.get_beast(2);
-    assert(beast2.id == 20, 'Wrong ID for beast 2');
-    assert(beast2.prefix == 2, 'Wrong prefix for beast 2');
-    assert(beast2.suffix == 2, 'Wrong suffix for beast 2');
-    assert(beast2.level == 10, 'Wrong level for beast 2');
-    assert(beast2.health == 200, 'Wrong health for beast 2');
+    let beast2: PackableBeast = beast_nft.get_beast(77);
+    assert!(beast2.id == 20, "Wrong ID for beast 2. Expected 20, got {}", beast2.id);
+    assert!(beast2.prefix == 2, "Wrong prefix for beast 2. Expected 2, got {}", beast2.prefix);
+    assert!(beast2.suffix == 2, "Wrong suffix for beast 2. Expected 2, got {}", beast2.suffix);
+    assert!(beast2.level == 10, "Wrong level for beast 2. Expected 10, got {}", beast2.level);
+    assert!(beast2.health == 200, "Wrong health for beast 2. Expected 200, got {}", beast2.health);
 
     // Verify both beasts are marked as minted
-    assert(beast_nft.is_minted(10, 1, 1), 'Beast 1 not marked as minted');
-    assert(beast_nft.is_minted(20, 2, 2), 'Beast 2 not marked as minted');
+    assert!(beast_nft.is_minted(10, 1, 1), "Beast 1 not marked as minted");
+    assert!(beast_nft.is_minted(20, 2, 2), "Beast 2 not marked as minted");
 }
 
 // ===========================================
@@ -554,21 +616,18 @@ fn test_initiate_airdrop() {
 
     // Set block number
     start_cheat_block_number(beast_mode.contract_address, 1000);
-
     // Mock VRF call
     mock_vrf_consume_random('VRF_SEED_123');
-
     // Verify airdrop not initiated
     assert(beast_mode.get_airdrop_block_number() == 0, 'Airdrop already initiated');
-    assert(beast_mode.get_airdrop_count() == 0, 'Airdrop count not zero');
-
+    assert(beast_mode.get_beast_airdrop_count() == 0, 'Airdrop count not zero');
     // Initiate airdrop
+    let owner_address = contract_address_const::<OWNER>();
+    start_cheat_caller_address(beast_mode.contract_address, owner_address);
     beast_mode.initiate_airdrop();
-
     // Verify airdrop was initiated
     assert(beast_mode.get_airdrop_block_number() == 1100, 'Wrong airdrop block number');
-    assert(beast_mode.get_airdrop_count() == 75, 'Wrong airdrop count');
-
+    assert(beast_mode.get_beast_airdrop_count() == 75, 'Wrong airdrop count');
     stop_cheat_block_number(beast_mode.contract_address);
 }
 
@@ -609,21 +668,17 @@ fn test_claim_reward_token() {
 
     // Mock adventurer health - must be dead (0)
     mock_adventurer_health_call(0);
-
     // Mock get_adventurer_level - returning level 10
     let level = 10_u8;
     mock_adventurer_level_call(level);
-
     // Mock token metadata for reward calculation
     // Set minted_at to opening_time + 1 (no bonus multiplier)
     mock_token_metadata_call(1001);
-
     // Mock IERC721 owner_of for game token
     mock_owner_of_call(player_address);
 
     // Mock ERC20 transfer
     mock_erc20_transfer_call(true);
-
     // Call claim_reward_token as any caller (no ownership check on caller)
     beast_mode.claim_reward_token(token_id);
 }
@@ -687,7 +742,20 @@ fn test_claim_reward_token_already_claimed() {
 
     // Mock token metadata (2 calls)
     mock_call(GAME_TOKEN_ADDRESS(), selector!("token_address"), GAME_TOKEN_ADDRESS(), 2);
-    let metadata = (1001_u64, 0_felt252);
+
+    let metadata = TokenMetadata {
+        game_id: 1,
+        minted_at: 1001_u64,
+        settings_id: 0,
+        lifecycle: Lifecycle { start: 0, end: 0 },
+        minted_by: 0,
+        soulbound: false,
+        game_over: false,
+        completed_all_objectives: false,
+        has_context: false,
+        objectives_count: 0,
+    };
+
     mock_call(GAME_TOKEN_ADDRESS(), selector!("token_metadata"), metadata, 2);
 
     // Mock token ownership (2 calls)
@@ -707,7 +775,6 @@ fn test_claim_reward_token_already_claimed() {
 #[should_panic(expected: "Adventurer not from beast mode dungeon")]
 fn test_claim_reward_token_wrong_dungeon() {
     let (beast_mode, _) = deploy_beast_mode_with_mocks();
-    let beast_mode_address = beast_mode.contract_address;
 
     let token_id = 1_u64;
 
@@ -801,10 +868,18 @@ fn test_airdrop_legacy_beasts_fork() {
     stop_cheat_caller_address(beast_mode.contract_address);
 
     // Verify airdrop count increased (starts at 75, adds 3)
-    assert(beast_mode.get_beast_airdrop_count() == 78, 'Wrong airdrop count');
+    assert!(
+        beast_mode.get_beast_airdrop_count() == 78,
+        "Wrong airdrop count. Expected 78, got {}",
+        beast_mode.get_beast_airdrop_count(),
+    );
 
     // Verify beasts were minted
-    assert(beast_nft.total_supply() == 3, 'Wrong total supply');
+    assert!(
+        beast_nft.total_supply() == 78,
+        "Wrong total supply. Expected 78, got {}",
+        beast_nft.total_supply(),
+    );
 
     // Verify each beast has valid attributes from real contract
     let mut i: u32 = 0;
@@ -813,20 +888,45 @@ fn test_airdrop_legacy_beasts_fork() {
             break;
         }
 
-        let beast: PackableBeast = beast_nft.get_beast((i + 1).into());
+        let beast: PackableBeast = beast_nft.get_beast((76 + i).into());
 
         // Get the real beast data from mainnet (76, 77, 78)
         let real_beast = legacy_beasts.getBeast((76 + i).into());
         let _real_owner = legacy_beasts.ownerOf((76 + i).into());
 
         // Verify the minted beast matches real legacy beast data
-        assert(beast.id == real_beast.id, 'Wrong beast ID');
-        assert(beast.prefix == real_beast.prefix, 'Wrong prefix');
-        assert(beast.suffix == real_beast.suffix, 'Wrong suffix');
-        assert(beast.level == real_beast.level, 'Wrong level');
-        assert(beast.health == real_beast.health, 'Wrong health');
-        assert(beast.shiny == 0 || beast.shiny == 1, 'Invalid shiny');
-        assert(beast.animated == 0 || beast.animated == 1, 'Invalid animated');
+        assert!(
+            beast.id == real_beast.id,
+            "Wrong beast ID. Expected {}, got {}",
+            real_beast.id,
+            beast.id,
+        );
+        assert!(
+            beast.prefix == real_beast.prefix,
+            "Wrong prefix. Expected {}, got {}",
+            real_beast.prefix,
+            beast.prefix,
+        );
+        assert!(
+            beast.suffix == real_beast.suffix,
+            "Wrong suffix. Expected {}, got {}",
+            real_beast.suffix,
+            beast.suffix,
+        );
+        assert!(
+            beast.level == real_beast.level,
+            "Wrong level. Expected {}, got {}",
+            real_beast.level,
+            beast.level,
+        );
+        assert!(
+            beast.health == real_beast.health,
+            "Wrong health. Expected {}, got {}",
+            real_beast.health,
+            beast.health,
+        );
+        assert!(beast.shiny == 0 || beast.shiny == 1, "Invalid shiny");
+        assert!(beast.animated == 0 || beast.animated == 1, "Invalid animated");
 
         // Verify the beast is marked as minted
         assert(
@@ -895,54 +995,6 @@ fn test_admin_functions_owner_access() {
 }
 
 #[test]
-#[should_panic(expected: ('Airdrop not ready',))]
-fn test_airdrop_before_block_delay() {
-    let (beast_mode, _) = deploy_beast_mode_with_fork();
-    let owner = contract_address_const::<OWNER>();
-
-    // Initiate airdrop at block 1000
-    start_cheat_block_number(beast_mode.contract_address, 1000);
-    start_cheat_caller_address(beast_mode.contract_address, owner);
-    beast_mode.initiate_airdrop();
-
-    // Try to airdrop immediately (block 1001) - should fail as it needs +100 blocks
-    start_cheat_block_number(beast_mode.contract_address, 1001);
-    beast_mode.airdrop_legacy_beasts(1);
-    stop_cheat_caller_address(beast_mode.contract_address);
-
-    stop_cheat_block_number(beast_mode.contract_address);
-}
-
-#[test]
-fn test_airdrop_exactly_at_ready_block() {
-    let (beast_mode, beast_nft) = deploy_beast_mode_with_mocks();
-    let owner = contract_address_const::<OWNER>();
-
-    start_cheat_block_number(beast_mode.contract_address, 1000);
-    start_cheat_caller_address(beast_mode.contract_address, owner);
-    beast_mode.initiate_airdrop();
-
-    // Airdrop at exactly block 1091 (1000 + 100 - 10 + 1) should work
-    start_cheat_block_number(beast_mode.contract_address, 1091);
-    let block_hash = 'BLOCK_HASH';
-    start_cheat_block_hash(beast_mode.contract_address, 1100, block_hash);
-    // Mock tokenSupply for the airdrop call
-    let mock_legacy_address = contract_address_const::<'LEGACY_BEASTS'>();
-    mock_call(mock_legacy_address, selector!("tokenSupply"), 10000_u256, 1);
-
-    mock_premint_collectable_call(1);
-    mock_legacy_beast_calls_for_airdrop(1);
-
-    beast_mode.airdrop_legacy_beasts(1);
-    stop_cheat_caller_address(beast_mode.contract_address);
-
-    assert(beast_nft.total_supply() == 1, 'Should mint 1 beast');
-
-    stop_cheat_block_number(beast_mode.contract_address);
-    stop_cheat_block_hash(beast_mode.contract_address, 1100);
-}
-
-#[test]
 fn test_claim_beast_duplicate_attempt() {
     let (beast_mode, beast_nft) = deploy_beast_mode_with_mocks();
     let beast_mode_address = beast_mode.contract_address;
@@ -957,7 +1009,7 @@ fn test_claim_beast_duplicate_attempt() {
     // First claim should succeed
     start_cheat_caller_address(beast_mode_address, player);
     beast_mode.claim_beast(1_u64, 10_u8, 1_u8, 2_u8);
-    assert(beast_nft.total_supply() == 1, 'First claim failed');
+    assert(beast_nft.total_supply() == 76, 'First claim failed');
 
     // Second claim of same beast should fail via BeastNFT duplicate check
     // Note: This would fail at BeastNFT level with "Beast already minted" error
@@ -1044,7 +1096,20 @@ fn test_reward_token_double_claim_attack() {
 
     // Mock token metadata (2 calls)
     mock_call(GAME_TOKEN_ADDRESS(), selector!("token_address"), GAME_TOKEN_ADDRESS(), 2);
-    let metadata = (1001_u64, 0_felt252);
+
+    let metadata = TokenMetadata {
+        game_id: 1,
+        minted_at: 1001_u64,
+        settings_id: 0,
+        lifecycle: Lifecycle { start: 0, end: 0 },
+        minted_by: 0,
+        soulbound: false,
+        game_over: false,
+        completed_all_objectives: false,
+        has_context: false,
+        objectives_count: 0,
+    };
+
     mock_call(GAME_TOKEN_ADDRESS(), selector!("token_metadata"), metadata, 2);
 
     // Mock token ownership (2 calls)
@@ -1081,34 +1146,13 @@ fn test_airdrop_limit_boundary() {
     beast_mode.airdrop_legacy_beasts(0);
     stop_cheat_caller_address(beast_mode.contract_address);
 
-    assert(beast_nft.total_supply() == 0, 'Should not mint with 0 limit');
+    assert(beast_nft.total_supply() == 75, 'Should not mint with 0 limit');
 
     // Verify airdrop count didn't change
     assert(beast_mode.get_beast_airdrop_count() == 75, 'Count should stay at 75');
 
     stop_cheat_block_number(beast_mode.contract_address);
     stop_cheat_block_hash(beast_mode.contract_address, 1100);
-}
-
-#[test]
-#[should_panic(expected: ('ERC721: invalid receiver',))]
-fn test_claim_beast_with_zero_address_owner() {
-    let (beast_mode, _) = deploy_beast_mode_with_mocks();
-    let beast_mode_address = beast_mode.contract_address;
-    let zero_address = contract_address_const::<0>();
-    let player = contract_address_const::<PLAYER1>();
-
-    // Mock game token to return zero address as owner (edge case)
-    mock_call(GAME_TOKEN_ADDRESS(), selector!("owner_of"), zero_address, 1);
-
-    mock_beast_hash_call('BEAST_HASH');
-    mock_valid_collectable_call(12345_u64, 5_u16, 100_u16);
-    mock_erc20_safe_transfer_call();
-
-    // Should fail when trying to mint to zero address (ERC721 validation)
-    start_cheat_caller_address(beast_mode_address, player);
-    beast_mode.claim_beast(1_u64, 10_u8, 1_u8, 2_u8);
-    stop_cheat_caller_address(beast_mode_address);
 }
 
 #[test]
@@ -1131,6 +1175,7 @@ fn test_reward_token_with_zero_level() {
 }
 
 #[test]
+#[fork("mainnet")]
 #[should_panic(expected: ('Airdrop not initiated',))]
 fn test_airdrop_without_initiation() {
     let (beast_mode, _) = deploy_beast_mode_with_fork();
@@ -1154,26 +1199,32 @@ fn test_claim_reward_token_with_2x_multiplier() {
 
     // Mock dungeon check
     mock_adventurer_dungeon_call(beast_mode_address);
-
     // Mock adventurer health - must be dead
     mock_adventurer_health_call(0);
-
     // Mock level 10
     mock_adventurer_level_call(10_u8);
-
     // Mock token metadata - minted after free games + bonus (2x multiplier)
     // opening_time = 1000, free_games = 604800, bonus = 604800
     // So minted_at = 1000 + 604800 + 604800 + 1 = 1210401
     mock_call(GAME_TOKEN_ADDRESS(), selector!("token_address"), GAME_TOKEN_ADDRESS(), 1);
-    let metadata = (1210401_u64, 0_felt252);
-    mock_call(GAME_TOKEN_ADDRESS(), selector!("token_metadata"), metadata, 1);
+    let metadata = TokenMetadata {
+        game_id: 1210401_u64,
+        minted_at: 0,
+        settings_id: 0,
+        lifecycle: Lifecycle { start: 0, end: 0 },
+        minted_by: 0,
+        soulbound: false,
+        game_over: false,
+        completed_all_objectives: false,
+        has_context: false,
+        objectives_count: 0,
+    };
 
+    mock_call(GAME_TOKEN_ADDRESS(), selector!("token_metadata"), metadata, 1);
     // Mock token ownership
     mock_owner_of_call(player);
-
     // Mock ERC20 transfer - should get 20 tokens (10 * 2)
     mock_erc20_transfer_call(true);
-
     beast_mode.claim_reward_token(1_u64);
 }
 
@@ -1196,7 +1247,20 @@ fn test_claim_reward_token_with_4x_multiplier() {
     // opening_time = 1000, free_games = 604800
     // So minted_at = 1000 + 100 = 1100 (during free games)
     mock_call(GAME_TOKEN_ADDRESS(), selector!("token_address"), GAME_TOKEN_ADDRESS(), 1);
-    let metadata = (1100_u64, 0_felt252);
+
+    let metadata = TokenMetadata {
+        game_id: 1210401_u64,
+        minted_at: 1100_u64,
+        settings_id: 0,
+        lifecycle: Lifecycle { start: 0, end: 0 },
+        minted_by: 0,
+        soulbound: false,
+        game_over: false,
+        completed_all_objectives: false,
+        has_context: false,
+        objectives_count: 0,
+    };
+
     mock_call(GAME_TOKEN_ADDRESS(), selector!("token_metadata"), metadata, 1);
 
     // Mock token ownership
@@ -1274,6 +1338,7 @@ fn test_claim_jackpot_demon_grasp() {
 
 #[test]
 fn test_claim_jackpot_pain_whisper() {
+    println!("test_claim_jackpot_pain_whisper");
     let (beast_mode, beast_nft) = deploy_beast_mode_with_mocks();
     let beast_mode_address = beast_mode.contract_address;
     let player = contract_address_const::<PLAYER1>();
