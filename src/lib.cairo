@@ -363,11 +363,9 @@ pub mod beast_mode {
     fn claim_reward_token(ref self: ContractState, token_id: u64) {
         let reward_tokens_claimed = self.reward_tokens_claimed.read();
         assert(reward_tokens_claimed < REWARD_POOL, 'All tokens claimed');
-
         // Check if adventurer has already claimed
         let already_claimed = self.adventurer_claimed_reward.entry(token_id).read();
         assert!(!already_claimed, "Token already claimed");
-
         // Check adventurer is from beast mode dungeon
         let adventurer_systems_address = self.adventurer_systems_address.read();
         let adventurer_systems = IAdventurerSystemsDispatcher {
@@ -375,20 +373,16 @@ pub mod beast_mode {
         };
         let dungeon = adventurer_systems.get_adventurer_dungeon(token_id);
         assert!(dungeon == get_contract_address(), "Adventurer not from beast mode dungeon");
-
         // Check adventurer health
         let health = adventurer_systems.get_adventurer_health(token_id);
         assert!(health == 0, "Adventurer must be dead");
-
         // Get adventurer level to determine reward amount
         let mut level: u16 = adventurer_systems.get_adventurer_level(token_id).into();
         assert!(level > 2, "Adventurer must be level 3 or higher");
-
         // Cap at level 50
         if level > 50 {
             level = 50;
         }
-
         // Double reward after opening week
         let minigame = IMinigameDispatcher { contract_address: self.game_token_address.read() };
         let token_metadata = IMinigameTokenDispatcher { contract_address: minigame.token_address() }
@@ -401,24 +395,19 @@ pub mod beast_mode {
             + self.free_games_duration.read() {
             level *= 4;
         }
-
         // Use the smaller of level or available rewards
         let reward_amount: u32 = if level.into() + reward_tokens_claimed <= REWARD_POOL {
             level.into()
         } else {
             REWARD_POOL - reward_tokens_claimed
         };
-
         // Transfer reward tokens to the token owner
         let game_token = IERC721Dispatcher { contract_address: minigame.token_address() };
         let token_owner = game_token.owner_of(token_id.into());
-
         let reward_token = IERC20Dispatcher { contract_address: self.reward_token.read() };
         reward_token.transfer(token_owner, reward_amount.into() * REWARD_TOKEN_DECIMALS);
-
         // Mark token_id has claimed
         self.adventurer_claimed_reward.entry(token_id).write(true);
-
         // Update reward tokens claimed
         self.reward_tokens_claimed.write(reward_tokens_claimed + reward_amount);
     }
