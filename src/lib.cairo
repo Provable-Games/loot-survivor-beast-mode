@@ -18,8 +18,7 @@ pub mod data;
 
 // Local imports
 use interfaces::{
-    IBeastSystemsDispatcher, IBeastSystemsDispatcherTrait, ILegacyBeastsDispatcher,
-    ILegacyBeastsDispatcherTrait, DataResult, IAdventurerSystemsDispatcher,
+    IBeastSystemsDispatcher, IBeastSystemsDispatcherTrait, DataResult, IAdventurerSystemsDispatcher,
     IAdventurerSystemsDispatcherTrait, IBeastModeDispatcher, IBeastModeDispatcherTrait,
 };
 
@@ -81,8 +80,6 @@ pub mod beast_mode {
         adventurer_claimed_reward: Map<u64, bool>,
         airdrop_block_number: u64,
         beast_airdrop_count: u16,
-        token_airdrop_count: u16,
-        top_adventurer_airdrop_count: u16,
         bonus_duration: u64,
         jackpot_claimed: Map<u64, bool>,
     }
@@ -193,7 +190,7 @@ pub mod beast_mode {
                 let owner = game_token.owner_of(adventurer_id.into());
 
                 // Mint the beast NFT
-                let token_id: u256 = beasts_nft
+                let (token_id, _, _): (u256, u16, bool) = beasts_nft
                     .mint(owner, beast_id, prefix, suffix, level, health, shiny, animated);
 
                 // Transfer beast reward tokens
@@ -231,7 +228,6 @@ pub mod beast_mode {
 
         // Set airdrop count to 75
         self.beast_airdrop_count.write(75);
-        self.token_airdrop_count.write(75);
     }
 
     #[external(v0)]
@@ -251,11 +247,9 @@ pub mod beast_mode {
 
         let block_seed = get_block_hash_syscall(airdrop_block_number).unwrap_syscall();
 
-        let beasts_nft = IBeastsDispatcher { contract_address: self.beasts_nft_address.read() };
         let beast_systems = IBeastSystemsDispatcher {
             contract_address: self.game_collectable_address.read(),
         };
-        let erc721 = IERC721Dispatcher { contract_address: self.beasts_nft_old_address.read() };
 
         let new_limit = beast_airdrop_count + limit;
         while beast_airdrop_count < new_limit
@@ -272,91 +266,9 @@ pub mod beast_mode {
                 .premint_collectable(
                     beast_seed, beast.id, beast.prefix, beast.suffix, beast.level, beast.health,
                 );
-
-            // Mint the beast NFT
-            beasts_nft
-                .mint(
-                    erc721.owner_of(beast_airdrop_count.into()),
-                    beast.id,
-                    beast.prefix,
-                    beast.suffix,
-                    beast.level,
-                    beast.health,
-                    beast.shiny,
-                    beast.animated,
-                );
         };
 
         self.beast_airdrop_count.write(beast_airdrop_count);
-    }
-
-    #[external(v0)]
-    fn airdrop_legacy_beast_reward_tokens(ref self: ContractState, limit: u16) {
-        self.ownable.assert_only_owner();
-
-        let mut token_airdrop_count = self.token_airdrop_count.read();
-        assert(token_airdrop_count < self.beast_airdrop_count.read(), 'All tokens airdropped');
-
-        let legacy_beasts_dispatcher = ILegacyBeastsDispatcher {
-            contract_address: self.legacy_beasts_address.read(),
-        };
-        let new_limit = token_airdrop_count + limit;
-
-        while token_airdrop_count < new_limit
-            && token_airdrop_count < self.beast_airdrop_count.read() {
-            token_airdrop_count += 1;
-
-            let beast = legacy_beasts_dispatcher.getBeast(token_airdrop_count.into());
-
-            let mut reward_amount = get_beast_reward_amount(beast.id);
-            // Add 108 to the reward for LS1 beasts
-            if (token_airdrop_count <= 2381) {
-                reward_amount += 108;
-            } else {
-                reward_amount += 36;
-            }
-            let reward_token = IERC20Dispatcher { contract_address: self.reward_token.read() };
-            reward_token
-                .transfer(
-                    legacy_beasts_dispatcher.ownerOf(token_airdrop_count.into()),
-                    reward_amount.into() * REWARD_TOKEN_DECIMALS,
-                );
-        };
-
-        self.token_airdrop_count.write(token_airdrop_count);
-    }
-
-    #[external(v0)]
-    fn airdrop_top_legacy_adventurers(ref self: ContractState, limit: u16) {
-        self.ownable.assert_only_owner();
-
-        let mut airdrop_count = self.top_adventurer_airdrop_count.read();
-        assert(airdrop_count < 1000, 'All top adventurers airdropped');
-
-        let erc721 = IERC721Dispatcher {
-            contract_address: 0x018108b32cea514a78ef1b0e4a0753e855cdf620bc0565202c02456f618c4dc4
-                .try_into()
-                .unwrap(),
-        };
-        let new_limit = airdrop_count + limit;
-
-        while airdrop_count < new_limit && airdrop_count < 1000 {
-            let adventurer_id = *data::top_adventurer_ids().at(airdrop_count.into());
-
-            let position = airdrop_count + 1;
-            let mut reward_amount = get_top_adventurer_reward_amount(position);
-
-            let reward_token = IERC20Dispatcher { contract_address: self.reward_token.read() };
-            reward_token
-                .transfer(
-                    erc721.owner_of(adventurer_id.into()),
-                    reward_amount.into() * REWARD_TOKEN_DECIMALS,
-                );
-
-            airdrop_count += 1;
-        };
-
-        self.top_adventurer_airdrop_count.write(airdrop_count);
     }
 
     #[external(v0)]
