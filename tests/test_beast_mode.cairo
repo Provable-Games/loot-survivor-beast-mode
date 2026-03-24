@@ -1,13 +1,5 @@
-use starknet::{ContractAddress, contract_address_const};
-use snforge_std::{
-    declare, DeclareResultTrait, ContractClassTrait, start_cheat_caller_address,
-    stop_cheat_caller_address, start_cheat_block_number, stop_cheat_block_number,
-    start_cheat_block_hash, stop_cheat_block_hash, mock_call, start_mock_call,
-};
-use core::serde::Serde;
-
 use beast_mode::interfaces::{
-    IBeastModeDispatcher, IBeastModeDispatcherTrait, DataResult, ILegacyBeastsDispatcher,
+    DataResult, IBeastModeDispatcher, IBeastModeDispatcherTrait, ILegacyBeastsDispatcher,
     ILegacyBeastsDispatcherTrait,
 };
 use beast_mode::structs::LegacyBeast;
@@ -15,9 +7,16 @@ use beast_mode::structs::LegacyBeast;
 // Import real BeastNFT interfaces
 use beasts_nft::interfaces::{IBeastsDispatcher, IBeastsDispatcherTrait};
 use beasts_nft::pack::PackableBeast;
+use core::serde::Serde;
 
 //
-use game_components_token::structs::{TokenMetadata, Lifecycle};
+use game_components_token::structs::{Lifecycle, TokenMetadata};
+use snforge_std::{
+    ContractClassTrait, DeclareResultTrait, declare, mock_call, start_cheat_block_hash,
+    start_cheat_block_number, start_cheat_caller_address, start_mock_call, stop_cheat_block_hash,
+    stop_cheat_block_number, stop_cheat_caller_address,
+};
+use starknet::{ContractAddress, contract_address_const};
 
 
 // Test constants
@@ -116,25 +115,16 @@ fn deploy_beast_mode_with_fork() -> (IBeastModeDispatcher, IBeastsDispatcher) {
     let (contract_address, _) = contract
         .deploy(
             @array![
-                owner_address.into(),
-                opening_time.into(),
-                GAME_TOKEN_ADDRESS().into(),
-                MAINNET_DM_BEAST_SYSTEM().into(),
-                ADVENTURER_SYSTEMS_ADDRESS().into(),
+                owner_address.into(), opening_time.into(), GAME_TOKEN_ADDRESS().into(),
+                MAINNET_DM_BEAST_SYSTEM().into(), ADVENTURER_SYSTEMS_ADDRESS().into(),
                 beast_nft.contract_address.into(),
                 V2_BEASTS_MAINNET_ADDRESS().into(), // use real mainnet address
                 LEGACY_BEASTS_MAINNET_ADDRESS().into(), // Use real mainnet address
-                PAYMENT_TOKEN_ADDRESS().into(),
-                REWARD_TOKEN_ADDRESS().into(),
-                renderer_address.into(),
-                0, // empty golden pass array
-                ticket_receiver_address.into(),
-                settings_id.into(),
-                cost_to_play.low.into(),
-                cost_to_play.high.into(),
-                free_games_duration.into(),
-                contract_address_const::<'FREE_GAMES_CLAIMER'>().into(),
-                bonus_duration.into(),
+                PAYMENT_TOKEN_ADDRESS().into(), REWARD_TOKEN_ADDRESS().into(),
+                renderer_address.into(), 0, // empty golden pass array
+                ticket_receiver_address.into(), settings_id.into(), cost_to_play.low.into(),
+                cost_to_play.high.into(), free_games_duration.into(),
+                contract_address_const::<'FREE_GAMES_CLAIMER'>().into(), bonus_duration.into(),
             ],
         )
         .unwrap();
@@ -173,25 +163,15 @@ fn deploy_beast_mode_with_mocks() -> (IBeastModeDispatcher, IBeastsDispatcher) {
     let (contract_address, _) = contract
         .deploy(
             @array![
-                owner_address.into(),
-                opening_time.into(),
-                GAME_TOKEN_ADDRESS().into(),
-                MOCK_DM_BEAST_SYSTEM().into(),
-                ADVENTURER_SYSTEMS_ADDRESS().into(),
-                beast_nft.contract_address.into(),
-                v2_beast_address.into(), // Mock address
+                owner_address.into(), opening_time.into(), GAME_TOKEN_ADDRESS().into(),
+                MOCK_DM_BEAST_SYSTEM().into(), ADVENTURER_SYSTEMS_ADDRESS().into(),
+                beast_nft.contract_address.into(), v2_beast_address.into(), // Mock address
                 contract_address_const::<'LEGACY_BEASTS'>().into(), // Mock address
-                PAYMENT_TOKEN_ADDRESS().into(),
-                REWARD_TOKEN_ADDRESS().into(),
-                renderer_address.into(),
-                0, // empty golden pass array
-                ticket_receiver_address.into(),
-                settings_id.into(),
-                cost_to_play.low.into(),
-                cost_to_play.high.into(),
-                free_games_duration.into(),
-                contract_address_const::<'FREE_GAMES_CLAIMER'>().into(),
-                bonus_duration.into(),
+                PAYMENT_TOKEN_ADDRESS().into(), REWARD_TOKEN_ADDRESS().into(),
+                renderer_address.into(), 0, // empty golden pass array
+                ticket_receiver_address.into(), settings_id.into(), cost_to_play.low.into(),
+                cost_to_play.high.into(), free_games_duration.into(),
+                contract_address_const::<'FREE_GAMES_CLAIMER'>().into(), bonus_duration.into(),
             ],
         )
         .unwrap();
