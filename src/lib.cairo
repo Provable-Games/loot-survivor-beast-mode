@@ -1,10 +1,10 @@
 use core::hash::HashStateTrait;
 use core::poseidon::PoseidonTrait;
 use core::traits::DivRem;
+use game_components_metagame::ticket_booth::structs::GoldenPass;
 
 // External dependencies
 use game_components_metagame::ticket_booth::ticket_booth_component::TicketBoothComponent;
-use game_components_metagame::ticket_booth::structs::GoldenPass;
 use openzeppelin_access::ownable::OwnableComponent;
 use starknet::storage::{Map, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess};
 use starknet::{ContractAddress, get_contract_address};
@@ -52,11 +52,12 @@ pub mod beast_mode {
         opening_time: u64,
         #[allow(starknet::colliding_storage_paths)]
         game_token_address: ContractAddress,
+        #[allow(starknet::colliding_storage_paths)]
+        denshokan_address: ContractAddress,
         game_core_address: ContractAddress,
         beasts_nft_address: ContractAddress,
         reward_token: ContractAddress,
         jackpot_claimed: Map<u64, bool>,
-        denshokan_address: ContractAddress,
     }
 
     #[event]
@@ -73,17 +74,16 @@ pub mod beast_mode {
         ref self: ContractState,
         owner: ContractAddress,
         opening_time: u64,
+        denshokan_address: ContractAddress,
         game_token_address: ContractAddress,
         game_core_address: ContractAddress,
         beasts_nft_address: ContractAddress,
         payment_token: ContractAddress,
         reward_token: ContractAddress,
-        renderer_address: ContractAddress,
         golden_pass: Span<(ContractAddress, GoldenPass)>,
         ticket_receiver_address: ContractAddress,
         settings_id: u32,
         cost_to_play: u256,
-        denshokan_address: ContractAddress,
     ) {
         self.ownable.initializer(owner);
 
@@ -98,16 +98,15 @@ pub mod beast_mode {
             .ticket_booth
             .initializer(
                 opening_time,
+                denshokan_address,
                 game_token_address,
                 payment_token,
                 cost_to_play.try_into().unwrap(),
                 ticket_receiver_address,
                 Option::Some(game_token_address),
-                Option::Some(settings_id),                
+                Option::Some(settings_id),
                 Option::None, // games start_time
                 Option::None, // games expiration_time
-                Option::Some("https://lootsurvivor.io"),
-                Option::Some(renderer_address),
                 Option::Some(golden_pass),
             );
     }
@@ -129,6 +128,10 @@ pub mod beast_mode {
         let game_token = IERC721Dispatcher { contract_address: minigame.token_address() };
         let denshokan = IMinigameTokenMinterDispatcher { contract_address: denshokan_address };
 
+        let minted_by = unpack_minted_by(adventurer_id);
+        let minted_by_address = denshokan.get_minter_address(minted_by);
+        assert(minted_by_address == get_contract_address(), 'Not beast mode');
+
         // Calculate entity hash and validate collectable
         let entity_hash = PoseidonTrait::new()
             .update(beast_id.into())
@@ -136,17 +139,14 @@ pub mod beast_mode {
             .update(suffix.into())
             .finalize();
 
-        let minted_by = unpack_minted_by(adventurer_id);
-        let minted_by_address = denshokan.get_minter_address(minted_by);
-
-        assert(minted_by_address == get_contract_address(), 'Not beast mode');
-
         let collectable_id = PoseidonTrait::new()
             .update(minted_by.into())
             .update(entity_hash.into())
             .finalize();
 
         let collectable = game_core_systems.get_collectable(collectable_id);
+        let collected_by = get_collected_by(adventurer_id);
+        assert!(collectable.collected_by == collected_by, "Not killed by this adventurer");
         let owner = game_token.owner_of(adventurer_id.into());
 
         // Mint the beast NFT
@@ -288,5 +288,18 @@ pub mod beast_mode {
         } else {
             6
         }
+    }
+    use game_components_embeddable_game_standard::token::structs::{
+        unpack_minted_at, unpack_salt, unpack_tx_hash,
+    };
+
+    const COLLECTED_BY_TWO_POW_35: u64 = 0x800000000;
+    const COLLECTED_BY_TWO_POW_45: u64 = 0x200000000000;
+
+    fn get_collected_by(adventurer_id: felt252) -> u64 {
+        let minted_at: u64 = unpack_minted_at(adventurer_id);
+        let tx_hash: u64 = unpack_tx_hash(adventurer_id).into();
+        let salt: u64 = unpack_salt(adventurer_id).into();
+        minted_at + (tx_hash * COLLECTED_BY_TWO_POW_35) + (salt * COLLECTED_BY_TWO_POW_45)
     }
 }
