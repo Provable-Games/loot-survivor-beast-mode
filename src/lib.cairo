@@ -16,10 +16,7 @@ use beasts_nft::interfaces::{IBeastsDispatcher, IBeastsDispatcherTrait};
 use game_components_embeddable_game_standard::token::structs::unpack_minted_by;
 
 // External interface imports
-use game_components_interfaces::{
-    IMinigameDispatcher, IMinigameDispatcherTrait, IMinigameTokenMinterDispatcher,
-    IMinigameTokenMinterDispatcherTrait,
-};
+use game_components_interfaces::{IMinigameTokenDispatcher, IMinigameTokenDispatcherTrait};
 
 // Local imports
 use interfaces::{IGameCoreSystemsDispatcher, IGameCoreSystemsDispatcherTrait};
@@ -116,7 +113,6 @@ pub mod beast_mode {
         ref self: ContractState, adventurer_id: felt252, beast_id: u8, prefix: u8, suffix: u8,
     ) -> u256 {
         // Read contract addresses
-        let game_token_address = self.game_token_address.read();
         let game_core_address = self.game_core_address.read();
         let beasts_nft_address = self.beasts_nft_address.read();
         let denshokan_address = self.denshokan_address.read();
@@ -124,29 +120,29 @@ pub mod beast_mode {
         // Create dispatchers
         let game_core_systems = IGameCoreSystemsDispatcher { contract_address: game_core_address };
         let beasts_nft = IBeastsDispatcher { contract_address: beasts_nft_address };
-        let minigame = IMinigameDispatcher { contract_address: game_token_address };
-        let game_token = IERC721Dispatcher { contract_address: minigame.token_address() };
-        let denshokan = IMinigameTokenMinterDispatcher { contract_address: denshokan_address };
+        let game_token = IERC721Dispatcher { contract_address: denshokan_address };
+        let denshokan = IMinigameTokenDispatcher { contract_address: denshokan_address };
 
-        let minted_by = unpack_minted_by(adventurer_id);
-        let minted_by_address = denshokan.get_minter_address(minted_by);
+        // Verify adventurer was minted by this dungeon
+        let minted_by_address = denshokan.minted_by_address(adventurer_id);
         assert(minted_by_address == get_contract_address(), 'Not beast mode');
 
-        // Calculate entity hash and validate collectable
-        let entity_hash = PoseidonTrait::new()
+        // Compute collectable_id from beast params and adventurer's minted_by
+        let minted_by = unpack_minted_by(adventurer_id);
+        let beast_hash = PoseidonTrait::new()
             .update(beast_id.into())
             .update(prefix.into())
             .update(suffix.into())
             .finalize();
-
         let collectable_id = PoseidonTrait::new()
             .update(minted_by.into())
-            .update(entity_hash.into())
+            .update(beast_hash)
             .finalize();
 
         let collectable = game_core_systems.get_collectable(collectable_id);
-        let collected_by = get_collected_by(adventurer_id);
-        assert!(collectable.collected_by == collected_by, "Not killed by this adventurer");
+        let expected_collected_by = create_collected_by(adventurer_id);
+        assert(collectable.collected_by == expected_collected_by, 'Not your collectable');
+
         let owner = game_token.owner_of(adventurer_id.into());
 
         // Mint the beast NFT
@@ -293,10 +289,11 @@ pub mod beast_mode {
         unpack_minted_at, unpack_salt, unpack_tx_hash,
     };
 
+    // Constants for create_collected_by
     const COLLECTED_BY_TWO_POW_35: u64 = 0x800000000;
     const COLLECTED_BY_TWO_POW_45: u64 = 0x200000000000;
 
-    fn get_collected_by(adventurer_id: felt252) -> u64 {
+    pub fn create_collected_by(adventurer_id: felt252) -> u64 {
         let minted_at: u64 = unpack_minted_at(adventurer_id);
         let tx_hash: u64 = unpack_tx_hash(adventurer_id).into();
         let salt: u64 = unpack_salt(adventurer_id).into();

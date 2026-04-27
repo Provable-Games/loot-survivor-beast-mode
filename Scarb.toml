@@ -4,7 +4,7 @@ version = "2.0.0"
 edition = "2024_07"
 
 [dependencies]
-starknet = "2.15.1"
+starknet = "2.16.1"
 game_components_interfaces = { git = "https://github.com/Provable-Games/game-components.git", branch = "main" }
 game_components_embeddable_game_standard = { git = "https://github.com/Provable-Games/game-components.git", branch = "main" }
 game_components_metagame = { git = "https://github.com/Provable-Games/game-components.git", branch = "main" }
@@ -19,7 +19,8 @@ openzeppelin_upgrades = { git = "https://github.com/OpenZeppelin/cairo-contracts
 test = "snforge test"
 
 [dev-dependencies]
-snforge_std = "0.56.0"
+snforge_std = "0.58.1"
+assert_macros = "2.16.1"
 
 [[target.starknet-contract]]
 build-external-contracts = ["beasts_nft::beasts_nft"] 
@@ -30,7 +31,7 @@ name = "mainnet"
 url = "https://api.cartridge.gg/x/starknet/mainnet/rpc/v0_10"
 block_id.tag = "latest"
 
-[profile.dev.cairo]
-unstable-add-statements-functions-debug-info = true
-unstable-add-statements-code-locations-debug-info = true
-inlining-strategy = "avoid"
+# [profile.dev.cairo]
+# unstable-add-statements-functions-debug-info = true
+# unstable-add-statements-code-locations-debug-info = true
+# inlining-strategy = "avoid"
