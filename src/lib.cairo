@@ -6,8 +6,10 @@ use game_components_metagame::ticket_booth::structs::GoldenPass;
 // External dependencies
 use game_components_metagame::ticket_booth::ticket_booth_component::TicketBoothComponent;
 use openzeppelin_access::ownable::OwnableComponent;
+use openzeppelin_interfaces::upgrades::IUpgradeable;
+use openzeppelin_upgrades::UpgradeableComponent;
 use starknet::storage::{Map, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess};
-use starknet::{ContractAddress, get_contract_address};
+use starknet::{ClassHash, ContractAddress, get_contract_address};
 
 // Local modules
 pub mod interfaces;
@@ -31,6 +33,7 @@ pub mod beast_mode {
 
     component!(path: TicketBoothComponent, storage: ticket_booth, event: TicketBoothEvent);
     component!(path: OwnableComponent, storage: ownable, event: OwnableEvent);
+    component!(path: UpgradeableComponent, storage: upgradeable, event: UpgradeableEvent);
 
     #[abi(embed_v0)]
     impl TicketBoothImpl = TicketBoothComponent::TicketBoothImpl<ContractState>;
@@ -38,6 +41,7 @@ pub mod beast_mode {
     #[abi(embed_v0)]
     impl OwnableImpl = OwnableComponent::OwnableImpl<ContractState>;
     impl OwnableInternalImpl = OwnableComponent::InternalImpl<ContractState>;
+    impl UpgradeableInternalImpl = UpgradeableComponent::InternalImpl<ContractState>;
 
     #[storage]
     struct Storage {
@@ -45,6 +49,8 @@ pub mod beast_mode {
         ticket_booth: TicketBoothComponent::Storage,
         #[substorage(v0)]
         ownable: OwnableComponent::Storage,
+        #[substorage(v0)]
+        upgradeable: UpgradeableComponent::Storage,
         #[allow(starknet::colliding_storage_paths)]
         opening_time: u64,
         #[allow(starknet::colliding_storage_paths)]
@@ -64,6 +70,8 @@ pub mod beast_mode {
         TicketBoothEvent: TicketBoothComponent::Event,
         #[flat]
         OwnableEvent: OwnableComponent::Event,
+        #[flat]
+        UpgradeableEvent: UpgradeableComponent::Event,
     }
 
     #[constructor]
@@ -264,6 +272,26 @@ pub mod beast_mode {
     fn update_cost_to_play(ref self: ContractState, new_cost_to_play: u128) {
         self.ownable.assert_only_owner();
         self.ticket_booth.update_cost_to_play_internal(new_cost_to_play);
+    }
+
+    #[external(v0)]
+    fn open_dungeon(ref self: ContractState) {
+        self.ownable.assert_only_owner();
+        self.ticket_booth.open_internal();
+    }
+
+    #[external(v0)]
+    fn close_dungeon(ref self: ContractState) {
+        self.ownable.assert_only_owner();
+        self.ticket_booth.close_internal();
+    }
+
+    #[abi(embed_v0)]
+    impl UpgradeableImpl of IUpgradeable<ContractState> {
+        fn upgrade(ref self: ContractState, new_class_hash: ClassHash) {
+            self.ownable.assert_only_owner();
+            self.upgradeable.upgrade(new_class_hash);
+        }
     }
 
     fn felt_to_two_u64(value: felt252) -> (u64, u64) {

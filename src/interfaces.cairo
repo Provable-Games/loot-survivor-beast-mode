@@ -21,15 +21,16 @@ pub trait IGameCoreSystems<T> {
 #[starknet::interface]
 pub trait IBeastMode<T> {
     // View functions
-    fn get_opening_time(self: @T) -> u64;
+    fn dungeon_opening_time(self: @T) -> u64;
     fn get_game_token_address(self: @T) -> ContractAddress;
     fn get_game_core_address(self: @T) -> ContractAddress;
-    fn get_beast_nft_address(self: @T) -> ContractAddress;
-    fn get_reward_token_address(self: @T) -> ContractAddress;
+    fn get_beasts_nft_address(self: @T) -> ContractAddress;
     fn jackpot_claimed(self: @T, token_id: u64) -> bool;
 
     // State-changing functions
-    fn claim_beast(ref self: T, adventurer_id: u64, beast_id: u8, prefix: u8, suffix: u8) -> u256;
+    fn claim_beast(
+        ref self: T, adventurer_id: felt252, beast_id: u8, prefix: u8, suffix: u8,
+    ) -> u256;
     fn claim_jackpot(ref self: T, token_id: u64);
 
     // Owner-only functions
@@ -38,4 +39,6 @@ pub trait IBeastMode<T> {
     fn update_ticket_receiver_address(ref self: T, new_ticket_receiver_address: ContractAddress);
     fn update_settings_id(ref self: T, new_settings_id: Option<u32>);
     fn update_cost_to_play(ref self: T, new_cost_to_play: u128);
+    fn open_dungeon(ref self: T);
+    fn close_dungeon(ref self: T);
 }

@@ -26,9 +26,9 @@ set -euo pipefail
 # ── Configuration (edit these) ───────────────────────────────────────────────
 ADMIN_ADDRESS="0x0418ed348930686c844fda4556173457d3f71ae547262406d271de534af6b35e"                # Admin / owner address
 OPENING_TIME="1774979231"                 # Opening time (u64 unix timestamp)
-DENSHOKAN_ADDRESS="0x077cc1993e80f31770562a4e2ba73b18eae5696a3aa029cba0daea192149f9c0"            # Denshokan / minigame token minter address
-GAME_TOKEN_ADDRESS="0x00134d884bf0d3cddf0a7836f1b7e59cbe40d1cd3f87c41e745d07cd71b3a179"           # GameToken contract address
-GAME_CORE_ADDRESS="0x0303441ca6a69cc09f45ea699ccf8719514d312b6bfcc299039aedc5df8f1963"            # GameCore contract address
+DENSHOKAN_ADDRESS="0x00263cc540dac11334470a64759e03952ee2f84a290e99ba8cbc391245cd0bf9"            # Denshokan / minigame token minter address
+GAME_TOKEN_ADDRESS="0x04de0351ceab4ecd50be6ee09329b0dcb3b96a9da88cc158f453823a389722fa"           # GameToken contract address
+GAME_CORE_ADDRESS="0x023f86f5b4702f6ba114b82fb73448c58aad8f37a28b508b80bf129ee1edc405"            # GameCore contract address
 BEASTS_NFT_ADDRESS="0x046da8955829adf2bda310099a0063451923f02e648cf25a1203aac6335cf0e4"           # Beasts NFT contract address
 PAYMENT_TOKEN="0x0452810188C4Cb3AEbD63711a3b445755BC0D6C4f27B923fDd99B1A118858136"                # ERC20 token used for payment
 REWARD_TOKEN="0x042dd777885ad2c116be96d4d634abc90a26a790ffb5871e037dd5ae7d2ec86b"                 # ERC20 token used for beast rewards
